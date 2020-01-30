@@ -887,16 +887,18 @@ def serval():
    with open('cmdhistory.txt', 'a') as f:
       print(' '.join(sys.argv), file=f)
 
-   badfile = file(outdir + obj + '.flagdrs' + fibsuf + '.dat', 'w')
-   bervfile = open(outdir + obj + '.brv' + fibsuf + '.dat', 'w')
-   prefile = outdir + obj + '.pre' + fibsuf + '.dat'
-   rvofile = outdir + obj + '.rvo' + fibsuf + '.dat'
-   snrfile = outdir + obj + '.snr' + fibsuf + '.dat'
-   chifile = outdir + obj + '.chi' + fibsuf + '.dat'
-   halfile = outdir + obj + '.halpha' + fibsuf + '.dat'
-   nadfile = outdir + obj + '.nad' + fibsuf + '.dat'
-   irtfile = outdir + obj + '.cairt' + fibsuf + '.dat'
-   dfwfile = outdir + obj + '.dlw' + fibsuf + '.dat'
+   construct_path = lambda initial : outdir + obj + '.' + initial + fibsuf + '.dat'
+
+   badfile = construct_path('flagdrs')
+   bervfile = construct_path('brv')  
+   prefile = construct_path('pre')
+   rvofile = construct_path('rvo')
+   snrfile = construct_path('snr')
+   chifile = construct_path('chi')
+   halfile = construct_path('halpha')
+   nadfile = construct_path('nad')
+   irtfile = construct_path('cairt')
+   dfwfile = construct_path('dlw')
 
    # (echo 0 0 ; awk '{if($2!=x2){print x; print $0}; x=$0; x2=$2;}' telluric_mask_atlas.dat )> telluric_mask_atlas_short.dat
    #################################
@@ -987,7 +989,7 @@ def serval():
    SN55best = 0.
    print("    # %*s %*s OBJECT    BJD        SN  DRSBERV  DRSdrift flag calmode" % (-len(inst.name)-6, "inst_mode", -len(os.path.basename(files[0])), "timeid"))
 
-   with open(outdir + obj + '.info' + fibsuf + '.cvs', 'w') as infofile:
+   with open(construct_path('info'), 'w') as infofile:
       infowriter = csv.writer(infofile, delimiter=';', lineterminator="\n")
 
    for n,filename in enumerate(files):   # scanning fitsheader
@@ -1011,14 +1013,14 @@ def serval():
             SN55best = sp.sn55
             spi = n
       else:
-         print(sp.bjd, sp.ccf.rvc, sp.ccf.err_rvc, sp.timeid, sp.flag, file=badfile)
-      print(sp.bjd, sp.berv, sp.drsbjd, sp.drsberv, sp.drift, sp.timeid, sp.tmmean, sp.exptime, sp.berv_start, sp.berv_end, file=bervfile)
+         with open(badfile, 'w') as bad_file:
+            print(sp.bjd, sp.ccf.rvc, sp.ccf.err_rvc, sp.timeid, sp.flag, file=bad_file)
+      
+      with open(bervfile, 'w') as berv_file:
+         print(sp.bjd, sp.berv, sp.drsbjd, sp.drsberv, sp.drift, sp.timeid, sp.tmmean, sp.exptime, sp.berv_start, sp.berv_end, file=berv_file)
       infowriter.writerow([sp.timeid, sp.bjd, sp.berv, sp.sn55, sp.obj, sp.exptime, sp.ccf.mask, sp.flag, sp.airmass, sp.ra, sp.de])
       #print >>infofile, sp.timeid, sp.bjd, sp.berv, sp.sn55, sp.obj, sp.exptime, sp.ccf.mask, sp.flag
 
-   badfile.close()
-   bervfile.close()
-   infofile.close()
    sys.stdout.logname(obj+'/log.'+obj)
 
    t1 = time.time() - t0
