@@ -2,7 +2,7 @@ from read_spec import *
 from read_spec import Inst
 # Instrument parameters
 
-name = inst = __name__[5:]
+name = inst = __name__.split('_')[1]
 obsname = 'ohp' # for barycorrpy
 obsloc = dict(lat=43.9308, lon=5.7133, elevation=650)
 # 43.9308, 5.7133, 650 m

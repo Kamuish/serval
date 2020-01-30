@@ -1,6 +1,6 @@
 import numpy as np
-from gplot import *
-from calcspec import *
+from src.utils.gplot import *
+from src.calcspec import *
 
 def list2mask(filename, wd=4., wl=0.01, merge=True):
    """ convert a line list to a spectrum mask """

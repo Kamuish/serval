@@ -1,10 +1,8 @@
 #from __future__ import print_function
 
 import numpy as np
-from gplot import *
-from pause import *
-#def pause():
-#   pass
+from src.utils.gplot import *
+from src.utils import pause, stop
 
 xzip = zip; zip = lambda *x: list(xzip(*x))
 

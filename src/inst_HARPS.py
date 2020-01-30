@@ -1,8 +1,7 @@
-from read_spec import *
-from read_spec import Inst
+from src.read_spec import *
 # Instrument parameters
 
-inst = __name__[5:]   # HARPS, HARPSpre, HARPSpost, HARPN
+inst = __name__.split('_')[1]   # HARPS, HARPSpre, HARPSpost, HARPN
 name = inst[:5]       # HARPS, HARPN  (passed to bary)
 obsname = {'HARPS': 'eso', 'HARPN': 'lapalma'}[name[:5]] # for barycorrpy
 iomax = {'HARPS': 72, 'HARPN': 69}[name[:5]]

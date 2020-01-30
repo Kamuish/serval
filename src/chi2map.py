@@ -1,11 +1,11 @@
 import numpy as np
 import astropy.io.fits as pyfits
 
-import cspline as spl
-import paraboloid
-from gplot import *
-from pause import *
-from wstat import wsem, wmean
+import src.cspline as spl
+import src.paraboloid
+from src.utils.gplot import *
+from src.utils import pause, stop
+from src.wstat import wsem, wmean
 
 
 def SSRstat(vgrid, SSR, dk=1, plot='maybe'):

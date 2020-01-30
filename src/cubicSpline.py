@@ -20,11 +20,11 @@ yy
 '''
 
 import numpy as np
-import LUdecomp3
+import src.LUdecomp3
 from numpy import logical_and, asarray,zeros_like,floor,append
 from numpy.core.umath import sqrt, exp, greater, less, cos, add, sin, \
      less_equal, greater_equal
-import spl_int
+import src.spl_int
 
 
 def spl_c(x,y):
