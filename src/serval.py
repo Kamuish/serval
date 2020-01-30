@@ -44,6 +44,9 @@ from chi2map import Chi2Map
 
 import astropy.io.fits as pyfits
 
+from src.utils import create_print_file 
+
+
 gplot2 = Gplot() # for a second plot window
 gplot.bar(0).colors('classic')
 
@@ -2103,44 +2106,55 @@ def serval():
       crxfile = outdir+obj+'.crx'+fibsuf+'.dat'
       mlcfile = outdir+obj+'.mlc'+fibsuf+'.dat' # maximum likehood estimated RVCs and CRX
       srvfile = outdir+obj+'.srv'+fibsuf+'.dat' # serval top-level file
-      rvunit = [file(rvfile, 'w'), file(outdir+obj+'.badrv'+fibsuf+'.dat', 'w')]
-      rvounit = [file(rvofile, 'w'), file(rvofile+'bad', 'w')]
-      rvcunit = [file(rvcfile, 'w'), file(rvcfile+'bad', 'w')]
-      crxunit = [file(crxfile, 'w'), file(crxfile+'bad', 'w')]
-      mlcunit = [file(mlcfile, 'w'), file(mlcfile+'bad', 'w')]
-      srvunit = [file(srvfile, 'w'), file(srvfile+'bad', 'w')]
-      mypfile = [file(rvofile+'err', 'w'), file(rvofile+'errbad', 'w')]
-      snrunit = [file(snrfile, 'w'), file(snrfile+'bad', 'w')]
-      chiunit = [file(chifile, 'w'), file(chifile+'bad', 'w')]
-      dlwunit = [file(dfwfile, 'w'), file(dfwfile+'bad', 'w')]
+
+      rvunit = [rvfile, outdir+obj+'.badrv'+fibsuf+'.dat']
+      mypfile = [rvofile+'err', rvofile+'errbad']
+
+
+      rvounit = [rvofile, rvofile+'bad']
+      rvcunit = [rvcfile, rvcfile+'bad']
+      crxunit = [crxfile, crxfile+'bad']
+      mlcunit = [mlcfile, mlcfile+'bad']
+      srvunit = [srvfile, srvfile+'bad']
+      snrunit = [snrfile, snrfile+'bad']
+      chiunit = [chifile, chifile+'bad']
+      dlwunit = [dfwfile, dfwfile+'bad']
+
+
       if meas_index:
-         halunit = [file(halfile, 'w'), file(halfile+'bad', 'w')]
+         halunit = [halfile, halfile+'bad']
       if meas_CaIRT:
-         irtunit = [file(irtfile, 'w'), file(irtfile+'bad', 'w')]
+         irtunit = [irtfile, irtfile+'bad']
       if meas_NaD:
-         nadunit = [file(nadfile, 'w'), file(nadfile+'bad', 'w')]
+         nadunit = [nadfile, nadfile+'bad']
       for n,sp in enumerate(spoklist):
          if np.isnan(rvm[n]): sp.flag |= sflag.rvnan
          rvflag = int((sp.flag&(sflag.config+sflag.iod+sflag.rvnan)) > 0)
          if rvflag: 'nan RV for file: '+sp.filename
-         print(sp.bjd, RVc[n], e_RVc[n], file=rvunit[int(rvflag or np.isnan(sp.drift))])
-         print(sp.bjd, RV[n], e_RV[n], rvm[n], rvmerr[n], " ".join(map(str,rv[n])), file=rvounit[rvflag])
-         print(sp.bjd, RV[n], e_RV[n], rvm[n], rvmerr[n], " ".join(map(str,e_rv[n])), file=mypfile[rvflag])
-         print(sp.bjd, RVc[n], e_RVc[n], sp.drift, sp.e_drift, RV[n], e_RV[n], sp.berv, sp.sa, file=rvcunit[rvflag])
-         print(sp.bjd, " ".join(list(map(str,tCRX[n])) + list(map(str,xo[n]))), file=crxunit[rvflag])
-         print(sp.bjd, RVc[n], e_RVc[n], CRX[n], e_CRX[n], dLW[n], e_dLW[n], file=srvunit[rvflag])
-         print(sp.bjd, mlRVc[n], e_mlRVc[n], mlCRX[n], e_mlCRX[n], dLW[n], e_dLW[n], file=mlcunit[rvflag])
-         print(sp.bjd, dLW[n], e_dLW[n], " ".join(map(str,dlw[n])), file=dlwunit[rvflag])
-         print(sp.bjd, np.nansum(snr[n]**2)**0.5, " ".join(map(str,snr[n])), file=snrunit[rvflag])
-         print(sp.bjd, " ".join(map(str,rchi[n])), file=chiunit[rvflag])
+
+
+         create_print_file(rvunit[int(rvflag or np.isnan(sp.drift))], sp.bjd, RVc[n], e_RVc[n])
+         create_print_file(mypfile[rvflag], sp.bjd, RV[n], e_RV[n], rvm[n], rvmerr[n], " ".join(map(str,e_rv[n])))
+
+         file_app = '' if rvflag==0 else 'bad'
+
+         create_print_file(rvofile + file_app, sp.bjd, RV[n], e_RV[n], rvm[n], rvmerr[n], " ".join(map(str,rv[n])))
+
+         create_print_file(rvcfile + file_app, sp.bjd, RVc[n], e_RVc[n], sp.drift, sp.e_drift, RV[n], e_RV[n], sp.berv, sp.sa)
+         create_print_file(crxfile + file_app, sp.bjd, " ".join(list(map(str,tCRX[n])) + list(map(str,xo[n]))))
+         create_print_file(srvfile + file_app, sp.bjd, RVc[n], e_RVc[n], CRX[n], e_CRX[n], dLW[n], e_dLW[n])
+         create_print_file(mlcfile + file_app, sp.bjd, mlRVc[n], e_mlRVc[n], mlCRX[n], e_mlCRX[n], dLW[n], e_dLW[n])
+         create_print_file(dlwfile + file_app, sp.bjd, dLW[n], e_dLW[n], " ".join(map(str,dlw[n])))
+         create_print_file(snrfile + file_app, sp.bjd, np.nansum(snr[n]**2)**0.5, " ".join(map(str,snr[n])))
+         create_print_file(chifile + file_app, sp.bjd, " ".join(map(str,rchi[n])))
+
          if meas_index:
-            print(sp.bjd, " ".join(map(str, lineindex(halpha[n],harigh[n],haleft[n]) + halpha[n] + haleft[n] + harigh[n] + lineindex(cai[n],harigh[n],haleft[n]))), file=halunit[rvflag])  #,cah[n][0],cah[n][1]
+            create_print_file(halfile + file_app, sp.bjd, " ".join(map(str, lineindex(halpha[n],harigh[n],haleft[n]) + halpha[n] + haleft[n] + harigh[n] + lineindex(cai[n],harigh[n],haleft[n]))))  #,cah[n][0],cah[n][1]
          if meas_CaIRT:
-            print(sp.bjd, " ".join(map(str, lineindex(irt1[n], irt1a[n], irt1b[n]) + lineindex(irt2[n], irt2a[n], irt2b[n]) + lineindex(irt3[n], irt3a[n], irt3b[n]))), file=irtunit[rvflag])
+            create_print_file(irtfile + file_app, sp.bjd, " ".join(map(str, lineindex(irt1[n], irt1a[n], irt1b[n]) + lineindex(irt2[n], irt2a[n], irt2b[n]) + lineindex(irt3[n], irt3a[n], irt3b[n]))))
          if meas_NaD:
-            print(sp.bjd, " ".join(map(str, lineindex(nad1[n],nadr1[n],nadr2[n]) + lineindex(nad2[n],nadr2[n],nadr3[n]))), file=nadunit[rvflag])
-      for ifile in rvunit + rvounit + rvcunit + snrunit + chiunit + mypfile + crxunit + srvunit + mlcunit + dlwunit:
-         file.close(ifile)
+            create_print_file(nadfile + file_app, sp.bjd, " ".join(map(str, lineindex(nad1[n],nadr1[n],nadr2[n]) + lineindex(nad2[n],nadr2[n],nadr3[n]))))
+
 
       t2 = time.time() - t0
       print()
