@@ -29,12 +29,12 @@ from scipy.optimize import curve_fit
 
 from .utils import pause, stop
 from .wstat import wstd, wmean, wrms, rms, mlrms, iqr, wsem, nanwsem, nanwstd, naniqr, quantile
-from .read_spec import flag, sflag, def_wlog, brvrefs, Spectrum   # flag, sflag, def_wlog
+from .read_spec import flag, sflag, def_wlog, brvrefs, Spectrum, airtovac   # flag, sflag, def_wlog
 
 from .calcspec import redshift, dopshift, barshift, Calcspec ,qfacmask
 
 from .targ import Targ
-import src.cubicSpline
+import src.cubicSpline as cubicSpline
 import src.cspline as spl
 import src.masktools
 import src.phoenix_as_RVmodel
@@ -2134,6 +2134,8 @@ def flexdefault(arg):
    return [arg] if isinstance(arg, int) else arg
 
 def builder():
+   global co_excl, ckappa, outfmt, obj, pdb, targ, oset, coadd, coset, last, tpl, sp, fmod, reana, inst, fib, look, looki, lookt, lookp, lookssr, pmin, pmax, debug, pspllam, kapsig, nclip, atmfile, skyfile, atmwgt, omin, omax, ptmin, ptmax, driftref, deg, targrv, tplrv, o_excl
+
    insts = [os.path.basename(i)[5:-3] for i in glob.glob(servalsrc+'instruments/inst_*.py')]
 
    # check first the instrument with preparsing
