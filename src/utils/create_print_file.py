@@ -6,4 +6,4 @@ def create_print_file(filename, *args):
 
 
 if __name__ == '__main__':
-    create_print_file('teste.txt', [''],0, *args = 'a','b')
+    create_print_file('teste.txt', [''],0, 'a','b')
