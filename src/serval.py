@@ -29,7 +29,7 @@ from scipy.optimize import curve_fit
 
 from .utils import pause, stop
 from .wstat import wstd, wmean, wrms, rms, mlrms, iqr, wsem, nanwsem, nanwstd, naniqr, quantile
-from .read_spec import flag, sflag, def_wlog, brvrefs   # flag, sflag, def_wlog
+from .read_spec import flag, sflag, def_wlog, brvrefs, Spectrum   # flag, sflag, def_wlog
 
 from .calcspec import redshift, dopshift, barshift, Calcspec ,qfacmask
 
@@ -2134,7 +2134,7 @@ def flexdefault(arg):
    return [arg] if isinstance(arg, int) else arg
 
 def builder():
-   insts = [os.path.basename(i)[5:-3] for i in glob.glob(servalsrc+'inst_*.py')]
+   insts = [os.path.basename(i)[5:-3] for i in glob.glob(servalsrc+'instruments/inst_*.py')]
 
    # check first the instrument with preparsing
    preparser = argparse.ArgumentParser(add_help=False)
@@ -2142,18 +2142,18 @@ def builder():
    preparser.add_argument('-inst', help='instrument', default='HARPS', choices=insts)
    preargs, _ =  preparser.parse_known_args()
 
-   inst_name = preargs.inst
-   inst = importlib.import_module('src.inst_'+inst_name)
+   inst = preargs.inst
+   inst_mod = importlib.import_module('src.instruments.inst_'+inst)
 
    # instrument specific default
-   pmin = getattr(inst, 'pmin', 300)
-   pmax = getattr(inst, 'pmax', {'CARM_NIR':1800, 'ELODIE':900}.get(inst.name, 3800))
-   oset = getattr(inst, 'oset', {'HARPS':'10:71', 'HARPN':'10:', 'HPF':"[4,5,6,14,15,16,17,18]", 'CARM_VIS':'10:52', 'CARM_NIR': ':', 'FEROS':'10:', 'ELODIE':'2:'}.get(inst.name,':'))
+   pmin = getattr(inst_mod, 'pmin', 300)
+   pmax = getattr(inst_mod, 'pmax', {'CARM_NIR':1800, 'ELODIE':900}.get(inst_mod.name, 3800))
+   oset = getattr(inst_mod, 'oset', {'HARPS':'10:71', 'HARPN':'10:', 'HPF':"[4,5,6,14,15,16,17,18]", 'CARM_VIS':'10:52', 'CARM_NIR': ':', 'FEROS':'10:', 'ELODIE':'2:'}.get(inst_mod.name,':'))
 
    default = " (default: %(default)s)."
    epilog = """\
 
-   Default parameters are for """+inst.name+""".
+   Default parameters are for """+inst_mod.name+""".
 
    usage example:
    %(prog)s tag dir_or_filelist -targ gj699 -snmin 10 -oset 40:
@@ -2164,12 +2164,10 @@ def builder():
       if len(arg) and arg[0]=='-' and arg[1].isdigit(): sys.argv[i] = ' ' + arg
    print(sys.argv)
 
-   args = parser.parse_args()
+   args = parser.parse_args() 
    globals().update(vars(args))
-
-   inst = importlib.import_module('inst_'+inst)
+   inst = importlib.import_module('src.instruments.inst_'+inst)
    Spectrum.brvref = brvref
-
    if tpl and tpl.isdigit(): tpl = int(tpl)
    oset = arg2slice(oset)
    if isinstance(o_excl, dict): o_excl = arg2slice(o_excl[inst.name]) if inst.name in o_excl else []
