@@ -10,7 +10,7 @@ from wstat import nanwsem, wmean, mlrms, wstd
 try:
    import gls
 except:
-   print 'Cannot import gls'
+   print('Cannot import gls')
 
 try:
    import astropy.io.fits as pyfits
@@ -18,7 +18,7 @@ except:
    try:
       import pyfits
    except:
-      print 'Cannot import pyfits'
+      print('Cannot import pyfits')
 
 import chi2map
 
@@ -52,7 +52,7 @@ class srv:
       self.pre = pre = obj+'/'+tag
       self.rms = np.nan
 
-      print pre+'.rvc'+fibsuf+'.dat'
+      print(pre+'.rvc'+fibsuf+'.dat')
       self.allrv = genfromtxt2d(pre+'.rvo'+fibsuf+'.dat')
       self.allerr = genfromtxt2d(pre+'.rvo'+fibsuf+'.daterr')
       sbjd = np.genfromtxt(pre+'.rvo'+fibsuf+'.dat', dtype=('|S33'), usecols=[0])   # as string
@@ -66,7 +66,7 @@ class srv:
       try:
          self.tpre = genfromtxt2d(pre+'.pre'+fibsuf+'.dat')
       except:
-         print('warning: %s not found' % pre+'.pre'+fibsuf+'.dat')
+         print(('warning: %s not found' % pre+'.pre'+fibsuf+'.dat'))
       self.dLW, self.e_dLW = self.dlw.T[[1,2]]
 
       # info includes also flagged files; exclude them based on unpairable bjd
@@ -191,8 +191,8 @@ class srv:
          chimap = chi2map.fromfile(name, self.RV[n]/1000., self.e_RV[n]/1000., self.rv[n]/1000., self.e_rv[n]/1000., self.orders, self.keytitle, self.rchi[n])
 
          chimap.plot()
-         print 'mlRV', chimap.mlRV, chimap.e_mlRV
-         print 'RV  ', self.RV[n], self.e_RV[n]
+         print('mlRV', chimap.mlRV, chimap.e_mlRV)
+         print('RV  ', self.RV[n], self.e_RV[n])
 
          nn = pause('%i/%i %s %s'% (n+1, self.N, self.bjd[n], self.info[n]))
          try:
@@ -218,8 +218,8 @@ class srv:
          ind = self.orders
          xc = np.mean(x[ind])
          crxml, e_crxml = chimap.mlcrx(x, xc, ind)
-         print 'crxml', crxml
-         print 'crx  ', self.tcrx[1,n], self.tcrx[2,n]
+         print('crxml', crxml)
+         print('crx  ', self.tcrx[1,n], self.tcrx[2,n])
          chimap.plot_fit()
 
          nn = pause('%i/%i %s %s'% (n+1, self.N, self.bjd[n], self.info[n]))
@@ -252,17 +252,17 @@ class srv:
       x = [row for i, row in enumerate(reader) if row["#Karmn\t\t"]== self.tag+'\t']
       if x:
          x = x[0]
-         print '#Karm', x["#Karmn\t\t"], ' | GJ'+x[" GJ\t\t"], ' | '+x[" Name\t\t\t"]
-         print 'vsini [km/s]:', x[" vsini_kms-1\t"], "(%s)"%x[" Ref28\t"]
-         print 'Prot [km/s]:', x[" P_d \t\t"], x[" eP_d\t\t"], "(%s)"%x[" Ref29\t"]
-         print 'SpT :', x[" SpT\t\t"]
+         print('#Karm', x["#Karmn\t\t"], ' | GJ'+x[" GJ\t\t"], ' | '+x[" Name\t\t\t"])
+         print('vsini [km/s]:', x[" vsini_kms-1\t"], "(%s)"%x[" Ref28\t"])
+         print('Prot [km/s]:', x[" P_d \t\t"], x[" eP_d\t\t"], "(%s)"%x[" Ref29\t"])
+         print('SpT :', x[" SpT\t\t"])
 
    def targ(self):
      try:
       with open(self.pre+'.targ.cvs') as f:
          self.line = f.read()
       line = self.line.split(';')        # ['gj699', "NAME Barnard's star", ' 17 57 ...]
-      print line[0],"; ", line[1]
+      print(line[0],"; ", line[1])
       line = " ".join(line[2:]).split()
       self.ra = tuple(map(float,line[0:3]))  # rammss = (14.,29.,42.94)
       self.de = tuple(map(float,line[3:6]))  # demmss = (-62.,40.,46.16)
@@ -279,9 +279,9 @@ class srv:
       Periodanalysis of RV data.
       '''
       self.mlrms = mlrms(self.RVc, e=self.e_RVc)
-      print 'N:     ', self.N
-      print 'T [d]:     ', self.bjd.max() - self.bjd.min()
-      print 'wrms_RVc [m/s]:   %.2f\njitter [m/s]: %.2f' % self.mlrms
+      print('N:     ', self.N)
+      print('T [d]:     ', self.bjd.max() - self.bjd.min())
+      print('wrms_RVc [m/s]:   %.2f\njitter [m/s]: %.2f' % self.mlrms)
       #pause()
 
    def plotrvno(self):
@@ -290,7 +290,7 @@ class srv:
       crx, e_crx = self.tcrx[1:3]
       lam_o = np.exp(self.tcrx[6:].T)
       lnlv = np.log(self.tcrx[5])
-      print "use '$' to toggle between orders and wavelength"
+      print("use '$' to toggle between orders and wavelength")
       n = 0
       while 0 <= n < self.N:
          gplot.key('tit "%s %s %s"'%(n+1, bjd[n], self.info[n]))
@@ -513,7 +513,7 @@ class srv:
          e_n = np.sqrt((np.nansum((r**2-e_rv**2-e_o**2)/e_r**2, axis=1)/np.nansum(1/e_r**2, axis=1)).clip(min=0))[:,np.newaxis] # keepdims not in v1.6.1
          e_o = np.sqrt((np.nansum((r**2-e_rv**2-e_n**2)/e_r**2, axis=0)/np.nansum(1/e_r**2, axis=0)).clip(min=0))[np.newaxis,:]
          L = - 0.5* np.nansum(r**2/e_r**2) - 0.5* np.nansum(np.log(2.*np.pi*e_r**2))
-         print L, e_n.ravel()
+         print(L, e_n.ravel())
          gplot.unset(' multiplot')
          gplot.datafile('missing "nan"')
          gplot.multiplot('layout 1,2;')

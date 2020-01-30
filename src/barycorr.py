@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 # Python 2 compatibility
-from __future__ import division
+
 
 # Required packages
 #import requests
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 from numpy import array, ndarray
 
 
@@ -184,9 +184,9 @@ def _query_webserver(server_url, params, expected_length):
     # Fire the HTTP request
     try:
 #        r = requests.get(server_url, params=params)
-        g = "&".join([ "%s=%s"%x for x in params.items()])
+        g = "&".join([ "%s=%s"%x for x in list(params.items())])
         #print(server_url+'?'+g)
-        r = urllib2.urlopen(server_url+'?'+g)
+        r = urllib.request.urlopen(server_url+'?'+g)
     except:
         raise BarycorrError(
             'Could not connect to web server ({})'.format(server_url)

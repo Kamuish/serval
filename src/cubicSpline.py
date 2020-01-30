@@ -316,7 +316,7 @@ def evalSpline_old(xData,yData,k,xx):
       + (yData[i]*(x - xData[i+1])                            \
        - yData[i+1]*(x - xData[i]))/h
     yy.append(y)
-    if i<10: print i,y,x, k[i],x - xData[i]
+    if i<10: print(i,y,x, k[i],x - xData[i])
    return np.array(yy)
 
 

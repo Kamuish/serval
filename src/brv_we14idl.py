@@ -90,7 +90,7 @@ def bjdbrv(jd_utc, ra, dec, obsname=None, lat=None, lon=None, elevation=None,
    else:
       raise BarycorrError('Observatory location not set')
 
-   cmd = ['e = {' + (", ".join(["%s:%s"% p for p in params.items()]))+'}',
+   cmd = ['e = {' + (", ".join(["%s:%s"% p for p in list(params.items())]))+'}',
           'bjd = utc2bjd(%sd, %sd, %sd)' % (jd_utc, ra, dec),
           'brv = barycorr(%sd, %sd, %sd, 0., _extra=e, epoch=2448349.0625)' % (jd_utc, ra, dec),
           'print, bjd, brv, FORMAT="(F,F)"']
@@ -195,7 +195,7 @@ def bvc(jd_utc, ra, dec, obsname=None, lat=None, lon=None, elevation=None,
    else:
       raise BarycorrError('Observatory location not set')
 
-   cmd = ['e = {' + (", ".join(["%s:%s"% p for p in params.items()]))+'}',
+   cmd = ['e = {' + (", ".join(["%s:%s"% p for p in list(params.items())]))+'}',
           'brv = barycorr(%sd, %sd, %sd, 0., _extra=e)' % (jd_utc, ra, dec),
           'print, brv, FORMAT="(F,F)"']
 

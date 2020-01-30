@@ -1,4 +1,4 @@
-import urllib, urllib2
+import urllib.request, urllib.parse, urllib.error, urllib.request, urllib.error, urllib.parse
 import os
 import sys
 
@@ -27,15 +27,15 @@ def simbad_query(targ):
    "GJ699 : NAME Barnard's star : 17 57 48.49803 +04 41 36.2072 -798.58  10328.12  [1.72 1.22 0] 548.31 [1.51] A 2007A&A...474..653V\n\n"
    '''
 
-   query = urllib.quote("\n".join([
+   query = urllib.parse.quote("\n".join([
       'output script=off',
       'output console=off',
       'format object form1 "%OBJECT;%IDLIST(1);%COO(A D);%PM(A D [E]);%PLX;%RV"',
       'query '+targ]))
    # urllib2.urlopen('http://simbad.u-strasbg.fr/simbad/sim-script', 'submit=submit+script&script=output+script%3Doff%0D%0Aoutput+console%3Doff%0D%0Aformat+object+form1+%22%25OBJECT+%3A+%25IDLIST%281%29+%3A+%25COO%28A+D%29+%25PM%28A+D+[E]%29+%25PLX\n%22%0D%0Aquery+gj699')
 
-   site = urllib2.urlopen('http://simbad.u-strasbg.fr/simbad/sim-script').geturl()
-   result = urllib2.urlopen(site, 'submit=submit+script&script='+query).read()
+   site = urllib.request.urlopen('http://simbad.u-strasbg.fr/simbad/sim-script').geturl()
+   result = urllib.request.urlopen(site, 'submit=submit+script&script='+query).read()
 
    return result
 
@@ -76,13 +76,13 @@ class Targ:
       '''Restore info from a file.'''
       self.line = None
       if os.path.exists(filename):
-         print "targ.py: restoring '%s' from %s" % (self.name, filename)
+         print("targ.py: restoring '%s' from %s" % (self.name, filename))
          with open(filename) as f:
             self.line = f.read()
       return self.line
 
    def query(self):
-      print "targ.py: requesting simbad for '%s'" % self.name
+      print("targ.py: requesting simbad for '%s'" % self.name)
       self.line = simbad_query(self.name)
 
    def assignAttr(self, line):
@@ -99,10 +99,10 @@ class Targ:
    def tofile(self, filename=None):
       if filename:
          with (open(filename, 'w') if filename else sys.stdout) as f:
-            print >>f, self.line
-         print 'storing in', filename
+            print(self.line, file=f)
+         print('storing in', filename)
       else:
-         print self.line
+         print(self.line)
 
 
 if __name__ == "__main__":
@@ -110,6 +110,6 @@ if __name__ == "__main__":
    if len(sys.argv): name = sys.argv[1]
    targ = Targ(name)
    #targ = Targ('gj699', fromfilename='bla')
-   print targ.sa, targ.pmra, targ.pmde, targ.plx
+   print(targ.sa, targ.pmra, targ.pmde, targ.plx)
 
 

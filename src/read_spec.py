@@ -44,7 +44,7 @@ class nameddict(dict):
    __getattr__ = dict.__getitem__
 
    def translate(self, x):
-      return [name for name,f in self.items() if (f & x) or f==x==0]
+      return [name for name,f in list(self.items()) if (f & x) or f==x==0]
 
 # bpmap flagging
 flag = nameddict(
@@ -137,7 +137,7 @@ class Spectrum:
       self.scan(self, filename, pfits=pfits)
 
       if verb:
-         print "scan %s:"%self.instname, self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode
+         print("scan %s:"%self.instname, self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
 
       if inst.name != self.instname:
          pause('WARNING:', filename, 'from', self.inst, ', but mode is', inst)
@@ -439,7 +439,7 @@ def read_csfs_vis(self, s, orders=None, pfits=True, verb=True):
       bpmap[e==0] |= flag.nan
       return w, f, e, bpmap
 
-   if verb: print "read_carm_vis:", self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode
+   if verb: print("read_carm_vis:", self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
 
 
 def read_feros(self, s, orders=None, pfits=True, verb=True):
@@ -491,7 +491,7 @@ def read_feros(self, s, orders=None, pfits=True, verb=True):
       #  hdr['OBJECT'] = hdr.get('OBJECT','FOX')
       self.header = hdr
    hdr = self.header
-   if verb: print "read_feros:", self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode
+   if verb: print("read_feros:", self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
 
    if orders is not None:  # read order data
       if self.filename.endswith('.mt'):
@@ -598,7 +598,7 @@ def read_fts(self,s, orders=None, filename=None, pfits=True, verb=True):
       self.calmode = hdr.get('SOURCE', 0) #.split("_")[3] #fileid[fileid.index('(')+1:fileid.index(')')]
       self.timeid = self.fileid
       self.exptime = 0
-   if verb: print "read_fts:", self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode
+   if verb: print("read_fts:", self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
 
    if orders is not None:  # read order data
       nord = 70    # some arbitary shaping to 70x10000
@@ -666,7 +666,7 @@ def file_from_tar(s, inst='HARPS', fib=None, **kwargs):
       # does not work with np.fromfile
       s = tar.extractfile(extr)
    else:
-      print 'extract'
+      print('extract')
       tar.extract(extr, path='tarfits')   # extract physically
       s = 'tarfits/'+extr.name
    #tar.close()

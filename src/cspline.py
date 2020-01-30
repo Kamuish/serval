@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 __author__ = 'Mathias Zechmeister'
 __version__ = '2018-05-04'
@@ -242,7 +242,7 @@ class spl:
       if x is None:
          # return knot values 
          # for last knot append the end point of last interval a + b*1 + c*1^2 + d*1^3
-         y = np.r_[A[0], np.sum(zip(*A)[-1])]
+         y = np.r_[A[0], np.sum(list(zip(*A))[-1])]
       else:
          x = (self.K-1)/(self.xmax-self.xmin) * (x-self.xmin)
          k, p = divmod(x, 1)
@@ -512,18 +512,18 @@ def ucbspl_fit(x, y=None, w=None, K=10, xmin=None, xmax=None, lam=0., pord=2, mu
 
    if 0:
       # the slow way without band storage
-      print 'bspline2'
+      print('bspline2')
       B = bspline2((x-x.min())/(x.max()-x.min())*K, K, D=3)
       n = B.shape[1]
       D = np.diff(np.eye(n),n=pord).T
-      print 'BTy'
+      print('BTy')
       BTy = np.dot(B.T, y)
-      print 'BTB'
+      print('BTB')
       BTB = np.dot(B.T,B) + lam*np.dot(D.T,D)
       #BTB = B.T.dot(B)+lam*D.T.dot(D)
       #a = np.linalg.solve(BTB, BTy) # too slow
       a = solve_banded((3,3), bandmat(BTB,bw=7), BTy)
-      print a
+      print(a)
       yfit = np.dot(B,a)
 
    if c:
@@ -554,7 +554,7 @@ def ucbspl_fit(x, y=None, w=None, K=10, xmin=None, xmax=None, lam=0., pord=2, mu
 
       if lam:
          # Add penalty lam*DTD
-         print lam
+         print(lam)
          if pord == 0:
             # diagonal
             BTBbnd[0] += lam
@@ -738,8 +738,8 @@ def bspline1(x, K, D=3):
    for d in range(1, D+1):
 #      B = p[:-d]*B[:-1]/d + (d+1-p[:-d])/d*B[1:]         # Bkd
       B = (p[:-d]*B[:-1] - (p[d:]-1)*B[1:])/d         # Bkd
-      print B
-   print zip(k,B)
+      print(B)
+   print(list(zip(k,B)))
    return B
 
 def bspline2(x,K,D=3):
@@ -860,10 +860,10 @@ def example():
     [ 0,  0, -5, 10]
    ])
    D = np.array([1100, 100, 100, 100])
-   print "SciPy - Solve Banded"
-   print "A:", A
-   print "D:", D
-   print "Result:", SolveBanded(A, D)
+   print("SciPy - Solve Banded")
+   print("A:", A)
+   print("D:", D)
+   print("Result:", SolveBanded(A, D))
    pause()
 
 if __name__ == "__main__":

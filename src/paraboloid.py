@@ -313,7 +313,7 @@ def covmat_fit(X, z, **kwargs):
    array([-4.64905892e-16, -3.85802501e-15])
 
    '''
-   H = fit_paraboloid(zip(*X), z).W
+   H = fit_paraboloid(list(zip(*X)), z).W
    #print(np.array2string(Va,precision=2))
    return covmat(H, **kwargs) # Va, e_a
 
@@ -567,13 +567,13 @@ if __name__=='__main__':
       #cov = covmat_fit(zip(*P), z)
       gplot+("%s+%s*x w l lc 3"% tuple(cov.Xc))
 
-      print(a0, a1)
-      p = zip(a_cf, np.sqrt(np.diag(cov_cf)))
-      print("curve_fit:  %s +/- %s;" % p[0], "%s +/- %s" % p[1])
-      p = zip(cov.Xc, cov.e_a)
-      print("paraboloid: %s +/- %s;" % p[0], "%s +/- %s" % p[1])
+      print((a0, a1))
+      p = list(zip(a_cf, np.sqrt(np.diag(cov_cf))))
+      print(("curve_fit:  %s +/- %s;" % p[0], "%s +/- %s" % p[1]))
+      p = list(zip(cov.Xc, cov.e_a))
+      print(("paraboloid: %s +/- %s;" % p[0], "%s +/- %s" % p[1]))
       print(cov_cf)
-      print(cov.Va)
+      print((cov.Va))
       f = trend(x, *cov.Xc)
       X = [0*x+1, x]
       # uncertainty in prediction
@@ -593,28 +593,28 @@ if __name__=='__main__':
       gplot(x, y, e_y, a_pf+x*b_pf, ', "" us 1:4 w l')
 
       chi2map = [(ai, bi, np.sum((y-(ai+bi*x))**2/e_y**2)) for ai in np.arange(0,40) for bi in np.arange(180,220)]
-      ai, bi, chi2map = zip(*chi2map)
+      ai, bi, chi2map = list(zip(*chi2map))
 
-      cm = covmat_fit(zip(ai,bi), chi2map)
+      cm = covmat_fit(list(zip(ai,bi)), chi2map)
 
       # best fit parameters
-      print('polyfit    a, b', a_pf, b_pf)
-      print('paraboloid a, b', cm.Xc)
+      print(('polyfit    a, b', a_pf, b_pf))
+      print(('paraboloid a, b', cm.Xc))
 
       lhs = np.array([1/e_y, x/e_y]).T
       cov_ls = np.linalg.inv(np.dot(lhs.T, lhs))
 
-      print('paraboloid cov\n', cm.Va)
-      print('linreg cov\n', cov_ls)
+      print(('paraboloid cov\n', cm.Va))
+      print(('linreg cov\n', cov_ls))
 
       # with scaling
       scale = np.sqrt((lhs*lhs).sum(axis=0))
       cov_lss = np.linalg.inv(np.dot((lhs/scale).T, lhs/scale)) / np.outer(scale, scale)
-      print('linreg cov + scale\n', cov_lss)
+      print(('linreg cov + scale\n', cov_lss))
 
       # polyfit with fac = chi2min/DOF where DOF = N-order-2 (!), order = deg + 1
-      print('linreg cov + scale + DOF\n', cm.min/(len(x)-2-2.) * cov_lss)
-      print('polyfit cov\n', np.flipud(np.fliplr(cov)))
+      print(('linreg cov + scale + DOF\n', cm.min/(len(x)-2-2.) * cov_lss))
+      print(('polyfit cov\n', np.flipud(np.fliplr(cov))))
 
       # gplot.splot(ai, bi, chi2map)
       pause()
@@ -637,13 +637,13 @@ if __name__=='__main__':
 
       # covariance matrix
       V = C * s * s[np.newaxis].T  # s * C * s[np.newaxis].T not exactly symmetric
-      print("V\n", V)
+      print(("V\n", V))
 
       # weight matrix / inverse covariance matrix
       W = np.linalg.inv(V)
       W = (W + W.T) / 2 # ensure extract symmetry
       z = paraboloid(W, xc=[50, 2, 150])
-      print("W\n", W)
+      print(("W\n", W))
 
       gg = covmat(fit_paraboloid((x1, x2, x3), z(X)).W)
       gg.corner()

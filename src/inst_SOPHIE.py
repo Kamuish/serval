@@ -82,7 +82,7 @@ def scan(self, s, pfits=True, verb=False):
       else:
          #hdr = fitsio.read_header(s) no faster?
          self.f, hdrio = fitsio.read(s, header=True)
-         hdr = dict((key, val.strip() if type(val) is str else val) for key,val in dict(hdrio).iteritems())
+         hdr = dict((key, val.strip() if type(val) is str else val) for key,val in dict(hdrio).items())
          HIERARCH = ''
 
       #self.drs = 'DRS CAL LOC NBO' in "".join(hdr.keys())  # check DRS or FOX
@@ -97,7 +97,7 @@ def scan(self, s, pfits=True, verb=False):
       self.mjd = hdr[HIERINST+'OBS MJD']
       self.hdulist[0].verify('silentfix')
       if 'rounded' in hdr.comments[HIERINST+'OBS DATE START']:
-          print 'WARNING: proprietary data, dates are rounded.'
+          print('WARNING: proprietary data, dates are rounded.')
           self.dateobs = hdr[HIERINST+'OBS DATE START'] + 'T00:00:00.000'
       else:
           self.dateobs = hdr[HIERINST+'OBS DATE START']

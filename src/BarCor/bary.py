@@ -82,7 +82,7 @@ def bary(dateobs, rammss, demmss, inst, epoch=2000, exptime=0.0, pma=0.0, pmd=0.
 
 def main(files, **kwargs):
    for file in files:
-      print file, fmt % tuple(bary_harps(file,**kwargs))
+      print(file, fmt % tuple(bary_harps(file,**kwargs)))
 
 if __name__ == "__main__":
    parser = argparse.ArgumentParser(
