@@ -1,11 +1,9 @@
 import numpy as np
 from scipy import interpolate
 
-from pause import pause
-import cubicSpline
-from read_spec import def_wlog
-from gplot import *
-
+from .utils import pause
+from .read_spec import def_wlog
+from .utils import gplot 
 
 c = 299792.4580   # [km/s]
 
