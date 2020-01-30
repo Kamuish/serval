@@ -13,10 +13,9 @@ import warnings
 from collections import namedtuple
 
 
-try:
-   import astropy.io.fits as pyfits
-except:
-   import pyfits
+
+import astropy.io.fits as pyfits
+
 #import fitsio
 import numpy as np
 
