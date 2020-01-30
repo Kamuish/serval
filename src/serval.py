@@ -216,6 +216,7 @@ def analyse_rv(obj, postiter=1, fibsuf='', oidx=None, safemode=False, pdf=False)
       else:
          gplot(orddisp.T, ' matrix us (%s-1):3 t ""' % "".join(['$1==%s?%s:' % io for io in enumerate(orders)]))
          ogplot(orders, ordstd, ' w lp lt 3 t "", "" us 1:(-$2) w lp t ""')
+      if 0: pause(i)
    rvp = rv - ordmean
    pdf=0
    if pdf:
@@ -264,7 +265,11 @@ def analyse_rv(obj, postiter=1, fibsuf='', oidx=None, safemode=False, pdf=False)
    ogplot(bjd, RVpc, e_RVpc,' us ($1-2450000):2:3 w e pt 6 lt 7 t "RVpc"')
    if not safemode: pause('rv')
 
-
+   if 0:  # error comparison
+      gplot_set('set xlabel "Order"')
+      gplot(orders, ordstd, ' t "external error"')
+      ogplot(orders, np.mean(e_rv, axis=0), ' t "internal error"')
+      if not safemode: pause('ord disp')
    if 1:  # Order dispersion
       gplot.reset().xlabel('"Order"')
       #gplot('"'+filename,'" matrix every ::%i::%i us ($1-5):3' % (omin+5,omax+5))
