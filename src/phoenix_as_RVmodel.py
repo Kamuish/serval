@@ -1,9 +1,7 @@
 #! /usr/bin/python
 
-try:
-   import astropy.io.fits as pyfits
-except:
-   import pyfits
+import astropy.io.fits as pyfits
+
 import sys
 import os
 
