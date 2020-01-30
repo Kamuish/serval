@@ -1,6 +1,6 @@
 import argparse
 from .consts import lines
-
+import numpy as np 
 
 def arg2slice(arg):
    """Convert string argument to a slice."""
