@@ -30,8 +30,10 @@ from scipy.optimize import curve_fit
 from gplot import *
 from pause import pause, stop
 from wstat import wstd, wmean, wrms, rms, mlrms, iqr, wsem, nanwsem, nanwstd, naniqr, quantile
-from read_spec import *   # flag, sflag, def_wlog
-from calcspec import *
+from read_spec import flag, sflag, def_wlog, brvrefs   # flag, sflag, def_wlog
+
+from calcspec import redshift, dopshift, barshift, Calcspec ,qfacmask
+
 from targ import Targ
 import cubicSpline
 import cspline as spl
@@ -913,7 +915,7 @@ def serval():
 
    if atmspec:
       # standard telluric spectrum
-      if inst.name is not 'CARM_VIS':
+      if inst.name != 'CARM_VIS':
          pause('Only implemented for CARM_VIS')
       import astropy.io.fits as pyfits
       #hdu = pyfits.open('/home/astro115/carmenes/tellurics/stdatmos_vis/stdatmos_vis30a090rh0780p000t.fits')

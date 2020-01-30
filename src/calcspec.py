@@ -4,6 +4,7 @@ from scipy import interpolate
 from pause import pause
 import cubicSpline
 from read_spec import def_wlog
+from gplot import *
 
 
 c = 299792.4580   # [km/s]
@@ -57,7 +58,7 @@ def barshift(x, v=0.):
    """
    return redshift(x, vo=v)
 
-def calcspec(x2, v, *a, **kwargs):
+def Calcspec(x2, v, *a, **kwargs):
    """
    Doppler shifts the template and applies the polynom a using the Horner schema.
    p(x,a) * f(x, v)
@@ -85,7 +86,7 @@ def calcspec(x2, v, *a, **kwargs):
       poly += b
    return poly if kwargs.get('retpoly') else fmod * poly
 
-def qfacmask(lnw,f,sz=26,thres=3000.,plot=False):
+def qfacmask(lnw,f,sz=26,thres=3000,plot=False):
    '''mask the parts of the spectrum which have a a Q-factor higher than thres
       calculate moving Q factor'''
    lnf = np.log(f)
@@ -103,7 +104,6 @@ def qfacmask(lnw,f,sz=26,thres=3000.,plot=False):
    for i,msk in enumerate(idx):
       if msk: reg[max(i-sz/2,1):i+sz/2] = True
    if plot:
-      from gplot import *
       gplot(lnw,f,Qb," ,'' us 1:3 axis x1y2, "+str(thres)+" axis x1y2 t 'threshold'"); 
       ogplot(lnw[reg], f[reg],",", lnw[idx], f[idx])
       pause()
