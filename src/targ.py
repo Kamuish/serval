@@ -1,6 +1,7 @@
 import urllib.request, urllib.parse, urllib.error, urllib.request, urllib.error, urllib.parse
 import os
 import sys
+import requests
 
 # python version for the shell query
 # star=`sed 's/ /_/g; s/+/%2B/g' <<<$@`
@@ -32,11 +33,11 @@ def simbad_query(targ):
       'output console=off',
       'format object form1 "%OBJECT;%IDLIST(1);%COO(A D);%PM(A D [E]);%PLX;%RV"',
       'query '+targ]))
-   # urllib2.urlopen('http://simbad.u-strasbg.fr/simbad/sim-script', 'submit=submit+script&script=output+script%3Doff%0D%0Aoutput+console%3Doff%0D%0Aformat+object+form1+%22%25OBJECT+%3A+%25IDLIST%281%29+%3A+%25COO%28A+D%29+%25PM%28A+D+[E]%29+%25PLX\n%22%0D%0Aquery+gj699')
+
 
    site = urllib.request.urlopen('http://simbad.u-strasbg.fr/simbad/sim-script').geturl()
-   result = urllib.request.urlopen(site, 'submit=submit+script&script='+query).read()
 
+   result = requests.get(site + '?submit=submit+script&script='+query).text
    return result
 
 class Targ:
@@ -107,7 +108,6 @@ class Targ:
 
 if __name__ == "__main__":
    name = 'gj699'
-   if len(sys.argv): name = sys.argv[1]
    targ = Targ(name)
    #targ = Targ('gj699', fromfilename='bla')
    print(targ.sa, targ.pmra, targ.pmde, targ.plx)
