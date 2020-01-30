@@ -19,11 +19,11 @@ import astropy.io.fits as pyfits
 #import fitsio
 import numpy as np
 
-import brv_we14idl
-import brv_we14html
-from pause import pause, stop
-from gplot import *
-import sunrise
+import src.brv_we14idl 
+import  src.brv_we14html
+from .utils import pause, stop
+from src.utils import pause, stop
+import src.sunrise 
 
 class nameddict(dict):
    """
@@ -177,7 +177,7 @@ class Spectrum:
                #self.berv = brv_we14html.bvc(jd_utc=jd_utc, ra="%s+%s+%s"%targ.ra, dec="%s+%s+%s"%targ.de, obsname='ca', pmra=targ.pmra, pmdec=targ.pmde, parallax=0., rv=0., zmeas=[0], raunits='hours', deunits='degrees')[0]
                self.berv_start, self.berv, self.berv_end = brv_we14html.bvc(jd_utc=jd_utcs, ra="%s+%s+%s"%targ.ra, dec="%s+%s+%s"%targ.de, obsname='ca', pmra=targ.pmra, pmdec=targ.pmde, parallax=0., rv=0., zmeas=[0], raunits='hours', deunits='degrees')
             else:
-               self.bjd, self.berv = brv_we14idl.bjdbrv(jd_utc=jd_utc[0], ra=ra, dec=de, obsname=obsname, pmra=targ.pmra, pmdec=targ.pmde, parallax=0., rv=0., zmeas=[0])
+               self.bjd, self.berv = bjdbrv(jd_utc=jd_utc[0], ra=ra, dec=de, obsname=obsname, pmra=targ.pmra, pmdec=targ.pmde, parallax=0., rv=0., zmeas=[0])
 
             self.berv /= 1000.   # m/s to km/s
          if self.brvref == 'DRS':
