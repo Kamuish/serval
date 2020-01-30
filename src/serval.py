@@ -27,25 +27,25 @@ from numpy import std,arange,zeros,where, polynomial,setdiff1d,polyfit,array, ne
 from scipy import interpolate, optimize
 from scipy.optimize import curve_fit
 
-from gplot import *
-from pause import pause, stop
-from wstat import wstd, wmean, wrms, rms, mlrms, iqr, wsem, nanwsem, nanwstd, naniqr, quantile
-from read_spec import flag, sflag, def_wlog, brvrefs   # flag, sflag, def_wlog
+from .utils import pause, stop
+from .wstat import wstd, wmean, wrms, rms, mlrms, iqr, wsem, nanwsem, nanwstd, naniqr, quantile
+from .read_spec import flag, sflag, def_wlog, brvrefs   # flag, sflag, def_wlog
 
-from calcspec import redshift, dopshift, barshift, Calcspec ,qfacmask
+from .calcspec import redshift, dopshift, barshift, Calcspec ,qfacmask
 
-from targ import Targ
-import cubicSpline
-import cspline as spl
-import masktools
-import phoenix_as_RVmodel
-from chi2map import Chi2Map
+from .targ import Targ
+import src.cubicSpline
+import src.cspline as spl
+import src.masktools
+import src.phoenix_as_RVmodel
+from .chi2map import Chi2Map
 
 
 import astropy.io.fits as pyfits
 
-from src.utils import create_print_file 
-
+from .utils import create_print_file, build_parser, arg2slice, pause, stop
+from .utils.consts import *
+from src.utils.gplot import *
 
 gplot2 = Gplot() # for a second plot window
 gplot.bar(0).colors('classic')
@@ -92,7 +92,6 @@ _pKolynomial.interpol1D.argtypes = [
    c_int, c_int          # nn, n
 ]
 
-c = 299792.4580   # [km/s] speed of light
 
 def nans(*args, **kwargs):
    return np.nan * np.empty(*args, **kwargs)
@@ -318,32 +317,6 @@ def lineindex(l, r1, r2):
    return s, e
 
 
-
-lines = {
-         'Halpha': (6562.808, -15.5, 15.5),   # Kuerster et al. (2003, A&A, 403, 1077)
-         'Halpha': (6562.808, -40., 40.),
-         'Haleft': (6562.808, -300., -100.),
-         'Harigh': (6562.808, 100, 300),
-         'Haleft': (6562.808, -500., -300.),
-         'Harigh': (6562.808, 300, 500),
-         'CaI':    (6572.795, -15.5, 15.5),   # Kuerster et al. (2003, A&A, 403, 1077)
-         'CaH':    (3968.470, -1.09/2./3968.470*c, 1.09/2./3968.470*c), # Lovis et al. (2011, arXiv1107.5325)
-         'CaK':    (3933.664, -1.09/2./3933.664*c, 1.09/2./3933.664*c), # Lovis et al.
-         'CaIRT1': (8498.02, -15., 15.),      # NIST + my definition
-         'CaIRT1a': (8492, -40, 40),          # My definition
-         'CaIRT1b': (8504, -40, 40),          # My definition
-         'CaIRT2': (8542.09, -15., 15.),      # NIST + my definition
-         'CaIRT2a': (8542.09, -300, -200),    # My definition
-         'CaIRT2b': (8542.09, 250, 350),      # My definition, +50 due telluric
-         'CaIRT3': (8662.14, -15., 15.),      # NIST + my definition
-         'CaIRT3a': (8662.14, -300, -200),    # NIST + my definition
-         'CaIRT3b': (8662.14, 200, 300),      # NIST + my definition
-         'NaD1':   (5889.950943, -15., 15.),  # NIST + my definition
-         'NaD2':   (5895.924237, -15., 15.),  # NIST + my definition
-         'NaDref1': (5885, -40, 40),          # My definition
-         'NaDref2': ((5889.950+5895.924)/2, -40, 40),   # My definition
-         'NaDref3': (5905, -40, 40)           # My definition
-}
 
 def get_o_of_line(typ, wavemap):
    # find the orders of a spectral line
@@ -2101,32 +2074,18 @@ def serval():
          np.savetxt(prefile, list(zip(bjd[:nspecok], RV[:nspecok], e_RV[:nspecok])), fmt="%s")
          continue
       # write final results
-      rvfile = outdir+obj+fibsuf+'.dat'
-      rvcfile = outdir+obj+'.rvc'+fibsuf+'.dat'
-      crxfile = outdir+obj+'.crx'+fibsuf+'.dat'
-      mlcfile = outdir+obj+'.mlc'+fibsuf+'.dat' # maximum likehood estimated RVCs and CRX
-      srvfile = outdir+obj+'.srv'+fibsuf+'.dat' # serval top-level file
+
+      create_line = lambda initial: outdir + obj + initial + fibsuf + '.dat'
+      rvfile = create_line('')
+      rvcfile = create_line('.rcv')
+      crxfile = create_line('.crx')
+      mlcfile = create_line('.mlc') # maximum likehood estimated RVCs and CRX
+      srvfile = create_line('.srv')# serval top-level file
+
 
       rvunit = [rvfile, outdir+obj+'.badrv'+fibsuf+'.dat']
       mypfile = [rvofile+'err', rvofile+'errbad']
 
-
-      rvounit = [rvofile, rvofile+'bad']
-      rvcunit = [rvcfile, rvcfile+'bad']
-      crxunit = [crxfile, crxfile+'bad']
-      mlcunit = [mlcfile, mlcfile+'bad']
-      srvunit = [srvfile, srvfile+'bad']
-      snrunit = [snrfile, snrfile+'bad']
-      chiunit = [chifile, chifile+'bad']
-      dlwunit = [dfwfile, dfwfile+'bad']
-
-
-      if meas_index:
-         halunit = [halfile, halfile+'bad']
-      if meas_CaIRT:
-         irtunit = [irtfile, irtfile+'bad']
-      if meas_NaD:
-         nadunit = [nadfile, nadfile+'bad']
       for n,sp in enumerate(spoklist):
          if np.isnan(rvm[n]): sp.flag |= sflag.rvnan
          rvflag = int((sp.flag&(sflag.config+sflag.iod+sflag.rvnan)) > 0)
@@ -2139,7 +2098,6 @@ def serval():
          file_app = '' if rvflag==0 else 'bad'
 
          create_print_file(rvofile + file_app, sp.bjd, RV[n], e_RV[n], rvm[n], rvmerr[n], " ".join(map(str,rv[n])))
-
          create_print_file(rvcfile + file_app, sp.bjd, RVc[n], e_RVc[n], sp.drift, sp.e_drift, RV[n], e_RV[n], sp.berv, sp.sa)
          create_print_file(crxfile + file_app, sp.bjd, " ".join(list(map(str,tCRX[n])) + list(map(str,xo[n]))))
          create_print_file(srvfile + file_app, sp.bjd, RVc[n], e_RVc[n], CRX[n], e_CRX[n], dLW[n], e_dLW[n])
@@ -2167,14 +2125,6 @@ def serval():
       if safemode<2: pause('TheEnd')
 
 
-def arg2slice(arg):
-   """Convert string argument to a slice."""
-   # We want four cases for indexing: None, int, list of ints, slices.
-   # Use [] as default, so 'in' can be used.
-   if isinstance(arg, str):
-      arg = eval('np.s_['+arg+']')
-   return [arg] if isinstance(arg, int) else arg
-
 def flexdefault(arg):
    """Convert string argument to a slice."""
    # We want four cases for indexing: None, int, list of ints, slices.
@@ -2183,7 +2133,7 @@ def flexdefault(arg):
       arg = eval('np.s_['+arg+']')
    return [arg] if isinstance(arg, int) else arg
 
-if __name__ == "__main__":
+def builder():
    insts = [os.path.basename(i)[5:-3] for i in glob.glob(servalsrc+'inst_*.py')]
 
    # check first the instrument with preparsing
@@ -2192,8 +2142,8 @@ if __name__ == "__main__":
    preparser.add_argument('-inst', help='instrument', default='HARPS', choices=insts)
    preargs, _ =  preparser.parse_known_args()
 
-   inst = preargs.inst
-   inst = importlib.import_module('inst_'+inst)
+   inst_name = preargs.inst
+   inst = importlib.import_module('src.inst_'+inst_name)
 
    # instrument specific default
    pmin = getattr(inst, 'pmin', 300)
@@ -2208,84 +2158,7 @@ if __name__ == "__main__":
    usage example:
    %(prog)s tag dir_or_filelist -targ gj699 -snmin 10 -oset 40:
    """
-   parser = argparse.ArgumentParser(description=description, epilog=epilog, add_help=False, formatter_class=argparse.RawTextHelpFormatter)
-   argopt = parser.add_argument   # function short cut
-   argopt('obj', help='Tag, output directory and file prefix (e.g. Object name).')
-   argopt('dir_or_inputlist', help='Directory name with reduced data fits/tar or a file listing the spectra (only suffixes .txt or .lis accepted).', nargs='?')
-   argopt('-targ', help='Target name requested in simbad for coordinates, proper motion, parallax and absolute RV.')
-   argopt('-targrade', help='Target coordinates: [ra|hh:mm:ss.sss de|de:mm:ss.sss].', nargs=2, default=[None,None])
-   argopt('-targpm', help='Target proper motion: pmra [mas/yr] pmde [mas/yr].', nargs=2, type=float, default=[0.0,0.0])
-   argopt('-targplx', help='Target parallax', type=float, default='nan')
-   argopt('-targrv', help='[km/s] Target RV guess (for index measures) [float, "drsspt", "drsmed", "targ", None, "auto"]. None => no measure; targ => from simbad, hdr; auto => first from headers, second from simbad))', default={'CARM_NIR':None, 'else':'auto'})
-   argopt('-atmmask', help='Telluric line mask ('' for no masking)'+default, default='auto', dest='atmfile')
-   argopt('-atmwgt', help='Downweighting factor for coadding in telluric regions'+default, type=float, default=None)
-   argopt('-atmspec', help='Telluric spectrum  (in fits format, e.g. lib/stdatmos_vis30a090rh0780p000t.fits) to correct spectra by simple division.'+default, type=str, default=None)
-   argopt('-brvref', help='Barycentric RV code reference', choices=brvrefs, type=str, default='WE')
-   argopt('-msklist', help='Ascii table with vacuum wavelengths to mask.', default='') # [flux and width]
-   argopt('-mskwd', help='[km/s] Broadening width for msklist.', type=float, default=4.)
-   argopt('-mskspec', help='Ascii 0-1 spectrum.'+default, default='')
-   argopt('-ccf',  help='mode ccf [with files]', nargs='?', const='th_mask_1kms.dat', type=str)
-   argopt('-ccfmode', help='type for ccf template', nargs='?', default='box',
-                      choices=['box', 'binless', 'gauss', 'trapeze'])
-   argopt('-coadd', help='coadd method'+default, default='post3',
-                   choices=['post3'])
-   argopt('-coset', help='index for order in coadding (default: oset)', type=arg2slice)
-   argopt('-co_excl', help='orders to exclude in coadding (default: o_excl)', type=arg2slice)
-   argopt('-ckappa', help='kappa sigma (or lower and upper) clip value in coadding. Zero values for no clipping'+default, nargs='+', type=float, default=(4.,4.))
-   argopt('-deg',  help='degree for background polynomial', type=int, default=3)
-   argopt('-distmax', help='[arcsec] Max distance telescope position from target coordinates.', nargs='?', type=float, const=30.)
-   argopt('-driftref', help='reference file for drift mode', type=str)
-   argopt('-fib',  help='fibre', choices=['', 'A', 'B', 'AB'], default='')
-   argopt('-inst', help='instrument '+default, default='HARPS', choices=insts)
-   argopt('-nset', '-iset', help='slice for file subset (e.g. 1:10, ::5)', default=':', type=arg2slice)
-   argopt('-kapsig', help='kappa sigma clip value'+default, type=float, default=3.0)
-   argopt('-last', help='use last template (-tpl <obj>/template.fits)', action='store_true')
-   argopt('-look', help='slice of orders to view the fit [:]', nargs='?', default=[], const=':', type=arg2slice)
-   argopt('-looki', help='list of indices to watch', nargs='*', choices=sorted(lines.keys()), default=[]) #, const=['Halpha'])
-   argopt('-lookt', help='slice of orders to view the coadd fit [:]', nargs='?', default=[], const=':', type=arg2slice)
-   argopt('-lookp', help='slice of orders to view the preRV fit [:]', nargs='?', default=[], const=':', type=arg2slice)
-   argopt('-lookssr', help='slice of orders to view the ssr function [:]', nargs='?', default=[], const=':', type=arg2slice)
-   argopt('-lookmlRV', help='chi2map and master', nargs='?', default=[], const=':', type=arg2slice)
-   argopt('-lookmlCRX', help='chi2map and CRX fit ', nargs='?', default=[], const=':', type=arg2slice)
-   argopt('-nclip', help='max. number of clipping iterations'+default, type=int, default=2)
-   argopt('-niter', help='number of RV iterations'+default, type=int, default=2)
-   argopt('-oset', help='index for order subset (e.g. 1:10, ::5)'+default, default=oset, type=arg2slice)
-   argopt('-o_excl', help='Orders to exclude (e.g. 1,10,3)', default={"CARM_NIR":"0,2,12,13,16,17,18,19,20,21,22,23,24,25,26,27,30,32,33,34,35,36,37,38,39,40,41,42,43,44,45,47,49,51,53,54,55", "else":[]}, type=arg2slice)
-   #argopt('-outmod', help='output the modelling results for each spectrum into a fits file',  choices=['ratio', 'HARPN', 'CARM_VIS', 'CARM_NIR', 'FEROS', 'FTS'])
-   argopt('-ofac', help='oversampling factor in coadding'+default, default=1., type=float)
-   argopt('-ofacauto', help='automatic knot spacing with BIC.', action='store_true')
-   argopt('-outchi', help='output of the chi2 map', nargs='?', const='_chi2map.fits')
-   argopt('-outfmt', help='output format of the fits file (default: None; const: fmod err res wave)', nargs='*', choices=['wave', 'waverest', 'err', 'fmod', 'res', 'spec', 'bpmap', 'ratio'], default=None)
-   argopt('-outsuf', help='output suffix', default='_mod.fits')
-   argopt('-pmin', help='Minimum pixel'+default, default=pmin, type=int)
-   argopt('-pmax', help='Maximum pixel'+default, default=pmax, type=int)
-   argopt('-pspline', help='pspline as coadd filter [smooth value]', nargs='?', const=0.0000001, dest='pspllam', type=float)
-   argopt('-pmu', help='analog to GP mean. Default no GP penalty. Without the mean in each order. Otherwise this value.', nargs='?', const=True, type=float)
-   argopt('-pe_mu', help='analog to GP mean deviation', default=5., type=float)
-   argopt('-reana', help='flag reanalyse only', action='store_true')
-   argopt('-rvwarn', help='[km/s] warning threshold in debug'+default, default=2., type=float)
-   argopt('-safemode', help='does not pause or stop, optional level 1  2 (reana)', nargs='?', type=int, const=1, default=False)
-   argopt('-skippre', help='Skip pre-RVs.', action='store_true')
-   argopt('-skymsk', help='Sky emission line mask ('' for no masking)'+default, default='auto', dest='skyfile')
-   argopt('-snmin', help='minimum S/N (considered as not bad and used in template building)'+default, default=10, type=float)
-   argopt('-snmax', help='maximum S/N (considered as not bad and used in template building)'+default, default=400, type=float)
-   argopt('-tfmt', help='output format of the template. nmap is a an estimate for the number of good data points for each knot. ddspec is the second derivative for cubic spline reconstruction. (default: spec sig wave)', nargs='*', choices=['spec', 'sig', 'wave', 'nmap', 'ddspec'], default=['spec', 'sig', 'wave'])
-   argopt('-tpl',  help="template filename or directory, if None or integer a template is created by coadding, where highest S/N spectrum or the filenr is used as start tpl for the pre-RVs", nargs='?')
-   argopt('-tplrv', help='[km/s] template RV. By default taken from the template header and set to 0 km/s for phoe tpl.[float, "tpl", "drsspt", "drsmed", "targ", None, "auto"]', default='auto')
-   argopt('-tset',  help="slice for file subset in template creation", default=':', type=arg2slice)
-   argopt('-verb', help='verbose', action='store_true')
-   v_lo, v_hi, v_step = -5.5, 5.6, 0.1
-   argopt('-vrange', help='[km/s] velocity grid around targrv (v_lo, v_hi, v_step)'+default, nargs='*', default=(v_lo, v_hi, v_step), type=float)
-   argopt('-vtfix', help='fix RV in template creation', action='store_true')
-   argopt('-wfix', help='fix wavelength solution', action='store_true')
-   argopt('-debug', help='debug flag', nargs='?', default=0, const=1)
-   argopt('-bp',   help='break points', nargs='*', type=int)
-   argopt('-pdb',  help='debug post_mortem', action='store_true')
-   argopt('-cprofile', help='profiling', action='store_true')
-   # use add_help=false and re-add with more arguments
-   argopt('-?', '-h', '-help', '--help',  help='show this help message and exit', action='help')
-   #parser.__dict__['_option_string_actions']['-h'].__dict__['option_strings'] += ['-?', '-help']
-
+   parser = build_parser(description, epilog, default, pmin, pmax, brvrefs, insts, oset)
 
    for i, arg in enumerate(sys.argv):   # allow to parse negative floats
       if len(arg) and arg[0]=='-' and arg[1].isdigit(): sys.argv[i] = ' ' + arg
