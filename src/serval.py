@@ -41,6 +41,9 @@ import masktools
 import phoenix_as_RVmodel
 from chi2map import Chi2Map
 
+
+import astropy.io.fits as pyfits
+
 gplot2 = Gplot() # for a second plot window
 gplot.bar(0).colors('classic')
 
@@ -885,7 +888,6 @@ def serval():
       print(' '.join(sys.argv), file=f)
 
    badfile = file(outdir + obj + '.flagdrs' + fibsuf + '.dat', 'w')
-   infofile = file(outdir + obj + '.info' + fibsuf + '.cvs', 'w')
    bervfile = open(outdir + obj + '.brv' + fibsuf + '.dat', 'w')
    prefile = outdir + obj + '.pre' + fibsuf + '.dat'
    rvofile = outdir + obj + '.rvo' + fibsuf + '.dat'
@@ -948,10 +950,7 @@ def serval():
 
    msksky = [0] * iomax
    if 1 and inst.name=='CARM_VIS':
-      try:
-         import astropy.io.fits as pyfits
-      except:
-         import pyfits
+
       msksky = flag.atm * pyfits.getdata(servallib + 'carm_vis_tel_sky.fits')
 
    if msklist: # convert line list to mask
@@ -987,7 +986,9 @@ def serval():
    spi = None
    SN55best = 0.
    print("    # %*s %*s OBJECT    BJD        SN  DRSBERV  DRSdrift flag calmode" % (-len(inst.name)-6, "inst_mode", -len(os.path.basename(files[0])), "timeid"))
-   infowriter = csv.writer(infofile, delimiter=';', lineterminator="\n")
+
+   with open(outdir + obj + '.info' + fibsuf + '.cvs', 'w') as infofile:
+      infowriter = csv.writer(infofile, delimiter=';', lineterminator="\n")
 
    for n,filename in enumerate(files):   # scanning fitsheader
       print('%3i/%i' % (n+1, nspec), end=' ')

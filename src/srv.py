@@ -12,13 +12,7 @@ try:
 except:
    print('Cannot import gls')
 
-try:
-   import astropy.io.fits as pyfits
-except:
-   try:
-      import pyfits
-   except:
-      print('Cannot import pyfits')
+import astropy.io.fits as pyfits
 
 import chi2map
 
