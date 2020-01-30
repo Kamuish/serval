@@ -34,10 +34,11 @@ def simbad_query(targ):
       'format object form1 "%OBJECT;%IDLIST(1);%COO(A D);%PM(A D [E]);%PLX;%RV"',
       'query '+targ]))
 
-
    site = urllib.request.urlopen('http://simbad.u-strasbg.fr/simbad/sim-script').geturl()
 
-   result = requests.get(site + '?submit=submit+script&script='+query).text
+   result = requests.get(site + '?submit=submit+script&script='+query).text 
+
+   # TODO: add check for failing simbad query -> no data found or not valid hhtp response
    return result
 
 class Targ:
@@ -90,6 +91,7 @@ class Targ:
       # parse the request
       line = self.line.split(';')[2:]        # ['gj699', "NAME Barnard's star", ' 17 57 ...]
       line = " ".join(line).split()
+
       self.ra = tuple(map(float,line[0:3]))  # rammss = (14.,29.,42.94)
       self.de = tuple(map(float,line[3:6]))  # demmss = (-62.,40.,46.16)
       self.pmra = float(line[6].replace("~","0."))             # pma = -3775.75
