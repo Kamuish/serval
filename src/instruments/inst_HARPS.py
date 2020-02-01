@@ -1,14 +1,14 @@
 from src.read_spec import *
 from src.utils import FitsClass
 # Instrument parameters
-
+import datetime
 inst = __name__.split('_')[1]   # HARPS, HARPSpre, HARPSpost, HARPN
 name = inst[:5]       # HARPS, HARPN  (passed to bary)
 obsname = {'HARPS': 'eso', 'HARPN': 'lapalma'}[name[:5]] # for barycorrpy
 iomax = {'HARPS': 72, 'HARPN': 69}[name[:5]]
 
 #maskfile = 'telluric_mask_carm_short.dat'
-
+import time
 def scan(self, filename, pfits=True, verb=False):
    """
    SYNTAX: read_harps(filename)
@@ -25,7 +25,6 @@ def scan(self, filename, pfits=True, verb=False):
    drs = self.drs
    if '.tar' in filename:
       s = file_from_tar(filename, inst=inst, fib=self.fib, pfits=pfits)
-
    if isinstance(filename, str) and '.gz' in filename:
       # if filename is isinstance(filename,tarfile.ExFileObject) then filename.position will change !? resulting in:
       # *** IOError: Empty or corrupt FITS file
@@ -65,9 +64,10 @@ def scan(self, filename, pfits=True, verb=False):
             args += (HIERDRS+'BLAZE FILE', HIERDRS+'DRIFT RV USED',
                      HIERDRS+'CAL TH DEG LL', HIERDRS+'CAL LOC NBO',
                      HIERDRS+'CAL TH COEFF LL')
-
          hdr = imhead(s, *args)
+
          self.hdu = getext(s)
+
       else:
          #hdr = fitsio.read_header(s) no faster?
          self.f, hdrio = fitsio.read(s, header=True)
@@ -143,7 +143,7 @@ def scan(self, filename, pfits=True, verb=False):
 
       hdr['OBJECT'] = hdr.get('OBJECT', 'FOX')
       self.header = self.hdr = hdr # self.header will be set to None
-
+      print("END OF HARPS scan")
 
 def data(self, orders, pfits=True):
    hdr = self.hdr
