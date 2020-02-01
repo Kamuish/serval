@@ -29,7 +29,7 @@ from scipy.optimize import curve_fit
 
 from src.utils import pause, stop
 from .wstat import wstd, wmean, wrms, rms, mlrms, iqr, wsem, nanwsem, nanwstd, naniqr, quantile
-from .read_spec import flag, sflag, def_wlog, brvrefs, Spectrum, airtovac   # flag, sflag, def_wlog
+from .read_spec import flag, sflag, def_wlog, brvrefs, Spectrum, airtovac, read_harps_ccf   # flag, sflag, def_wlog
 
 from .calcspec import redshift, dopshift, barshift, Calcspec ,qfacmask
 
@@ -969,8 +969,11 @@ def serval():
       infowriter = csv.writer(infofile, delimiter=';', lineterminator="\n")
 
    for n,filename in enumerate(files):   # scanning fitsheader
-      print('%3i/%i' % (n+1, nspec), end=' ')
+      print('%3i/%i' % (n+1, nspec))
+      to = time.time()
       sp = Spectrum(filename, inst=inst, pfits=2 if 'HARPS' in inst.name else True, drs=drs, fib=fib, targ=targ, verb=True)
+      print('222', time.time() - to)
+
       splist.append(sp)
       sp.sa = targ.sa / 365.25 * (sp.bjd-splist[0].bjd)
       sp.header = None   # saves memory(?), but needs re-read (?)
