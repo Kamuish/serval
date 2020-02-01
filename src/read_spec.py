@@ -19,6 +19,7 @@ import numpy as np
 from src.utils import pause, stop, FitsClass
 import src.brv_we14py as brv_we14py
 import src.sunrise as sunrise
+from src.utils import FitsClass
 class nameddict(dict):
    """
    Examples
@@ -142,7 +143,7 @@ class Spectrum:
       # start and end computed only for WE and WEhtml
       self.bjd_sart, self.berv_start = np.nan, np.nan
       self.bjd_end, self.berv_end = np.nan, np.nan
-
+      print("entering bary corr")
       if targ and targ.name == 'cal':
          self.bjd, self.berv = self.drsbjd, 0.
       elif targ and targ.ra:  # unique coordinates
@@ -181,7 +182,7 @@ class Spectrum:
       else:
          self.bjd, self.berv = self.drsbjd, self.drsberv
          self.brvref = self.drsname
-
+      print('left bary corr')
       if self.fib == 'B':
          self.berv = np.nan
          self.drsberv = np.nan
@@ -206,7 +207,7 @@ class Spectrum:
                  (ut < utend < sunris < sunset))      # |UT__R********S_|
          #if not dark:
             #self.flag |= sflag.daytime
-
+      print("got here")
       if orders is not None:
          self.read_data(orders=orders, wlog=wlog)
 #         self.data(orders=orders, wlog=wlog)
@@ -330,6 +331,7 @@ def read_template(filename):
    return hdu[2].data, hdu[1].data, hdu[0].header  # wave, flux
 
 def read_harps_ccf(s):
+   print("READ HARPS CCF: ", s)
    ccf = namedtuple('ccf', 'rvc err_rvc bis fwhm contrast mask')
    tar = None
    if ".tar" in s:
@@ -337,9 +339,12 @@ def read_harps_ccf(s):
       extr = None
       for member in tar.getmembers():
          if 'A.fits' in member.name:
-            if '_ccf_' in member.name and not extr: extr = member
-            if '_bis_' in member.name: extr = member   # prefer bis
-      if not extr: return ccf(0,0,0,0,0,0)
+            if '_ccf_' in member.name and not extr: 
+               extr = member
+            if '_bis_' in member.name: 
+               extr = member   # prefer bis
+      if not extr: 
+         return ccf(0,0,0,0,0,0)
       s = tar.extractfile(extr)
    else:
       s = glob.glob(s.replace("_e2ds","_bis_*")) + glob.glob(s.replace("_e2ds","_ccf_*"))
@@ -710,7 +715,7 @@ class imhead(dict):
       args += ('NAXIS', 'BITPIX')
       NR = 0
 
-      if isinstance(s, tarfile.TarInfo):
+      if isinstance(s, (tarfile.TarInfo, tarfile.ExFileObject)):
          if tarmode==1:
             fi = open(s.mother)
          if tarmode==3:
