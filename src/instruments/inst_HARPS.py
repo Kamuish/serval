@@ -1,4 +1,5 @@
 from src.read_spec import *
+from src.utils import FitsClass
 # Instrument parameters
 
 inst = __name__.split('_')[1]   # HARPS, HARPSpre, HARPSpost, HARPN
@@ -8,7 +9,7 @@ iomax = {'HARPS': 72, 'HARPN': 69}[name[:5]]
 
 #maskfile = 'telluric_mask_carm_short.dat'
 
-def scan(self, s, pfits=True, verb=False):
+def scan(self, filename, pfits=True, verb=False):
    """
    SYNTAX: read_harps(filename)
    OUTPUT: namedtuple('spectrum', 'w f berv bjd blaze drift timeid sn55 ')
@@ -22,13 +23,15 @@ def scan(self, s, pfits=True, verb=False):
 
    """
    drs = self.drs
-   if '.tar' in s:
-      s = file_from_tar(s, inst=inst, fib=self.fib, pfits=pfits)
+   if '.tar' in filename:
+      s = file_from_tar(filename, inst=inst, fib=self.fib, pfits=pfits)
 
-   if isinstance(s, str) and '.gz' in s:
-      # if s is isinstance(s,tarfile.ExFileObject) then s.position will change !? resulting in:
+   if isinstance(filename, str) and '.gz' in filename:
+      # if filename is isinstance(filename,tarfile.ExFileObject) then filename.position will change !? resulting in:
       # *** IOError: Empty or corrupt FITS file
       pfits = True
+
+      s = filename  # FIXME temporary solution, to fix s being both a tarobject and a string, depending on the filetype
 
    if 1:
       HIERARCH = 'HIERARCH '
@@ -46,9 +49,12 @@ def scan(self, s, pfits=True, verb=False):
          k_berv = 'E_BERV'
          k_bjd = 'E_BJD'
 
-      if pfits is True:  # header with pyfits
+      if pfits is True:  # header with pyfits    
+         # output from the file_from_tar does not enter this region -> TODO: better checks ? improve flow of code
+         # TODO: does pyfit open .gz files? seems unlikely
          self.hdulist = hdulist = pyfits.open(s) # slow 30 ms
-         hdr = self.hdulist[0].header # pyfits.getheader(s)
+         hdr = self.hdulist[0].header
+
       elif pfits==2:     # a faster version
          args = ('INSTRUME', 'OBJECT', 'MJD-OBS', 'DATE-OBS', 'OBS TARG NAME', 'EXPTIME',
                  'MJD-OBS', 'FILENAME', 'RA', 'DEC', k_tmmean, HIERINST+'DPR TYPE',
