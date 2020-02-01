@@ -18,7 +18,7 @@ class FitsClass():
         self.open_file.close()
 
     def seek(self, seek_pos):
-        self.open_file.seek(seek_pos) 
+        self.open_file.seek(int(seek_pos))
 
     @property 
     def file(self):
@@ -39,7 +39,10 @@ if __name__ == '__main__':
                 name = extr.name,
                 size=extr.size) 
 
-    s.seek(80)
-    
+
+    s.seek(s.offset_data)    
+    args = (b'INSTRUME', b'OBJECT', b'MJD-OBS')
     for card in iter(lambda:s.file.read(80), ''):   # read in 80 byte blocks
-        print(card)
+        if card.startswith(args):
+            print('yes')
+
