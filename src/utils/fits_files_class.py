@@ -2,6 +2,7 @@
 
 class FitsClass():
     def __init__(self, filepath, name, offset_data, size):
+        print('\t OPENING NEW FILE: ', filepath)
         self.file_path = filepath 
         self.open_file = open(filepath, mode = 'rb')
 
@@ -17,8 +18,8 @@ class FitsClass():
         """
         self.open_file.close()
 
-    def seek(self, seek_pos):
-        self.open_file.seek(int(seek_pos))
+    def seek(self, seek_pos, whence = 0):
+        self.open_file.seek(int(seek_pos), whence)
 
     @property 
     def file(self):
