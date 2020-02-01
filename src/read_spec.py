@@ -2,16 +2,13 @@
 __author__ = 'Mathias Zechmeister'
 __version__ = '2019-03-01'
 
-import datetime
 import glob
 import gzip
 import os
 import sys
 import tarfile
-import time
 import warnings
 from collections import namedtuple
-
 
 
 import astropy.io.fits as pyfits
@@ -19,11 +16,7 @@ import astropy.io.fits as pyfits
 #import fitsio
 import numpy as np
 
-import src.brv_we14idl 
-import  src.brv_we14html
-from .utils import pause, stop
-from src.utils import pause, stop
-import src.sunrise 
+from src.utils import pause, stop, FitsClass
 
 class nameddict(dict):
    """
@@ -248,12 +241,14 @@ class Inst:
    def __init__(self, inst):
       pass
 
-def read_spec(self, s, inst, plot=False, **kwargs):
+def read_spec(self, file_name, inst, plot=False, **kwargs):
+   # FIXME: why the return before all of the code? Possible fixed the loading of data and forgot to remove?
    #print s, inst
-   sp = inst.read(self, s, **kwargs)
+   sp = inst.read(self, file_name, **kwargs)
    return sp
 
-   if '.tar' in s: s = file_from_tar(s, inst=inst, fib=self.fib, **kwargs)
+   if '.tar' in file_name:
+      s = file_from_tar(file_name, inst=inst, fib=self.fib, **kwargs)
    if 'HARP' in inst:  sp = read_harps(self, s, inst=inst, **kwargs)
    elif inst == 'CARM_VIS':  sp = read_carm_vis(self, s, **kwargs)
    elif inst == 'CARM_NIR':  sp = read_carm_nir(self, s, **kwargs)
@@ -620,7 +615,7 @@ def read_fts(self,s, orders=None, filename=None, pfits=True, verb=True):
       return w, f, e, bpmap
 
 
-tarmode = 5
+tarmode = 5   # FIXME: temporary chaging the TARMODE
 # 0  - extract physically (works for all, slow)
 #      tarfits directory not cleaned
 # 1  - treat tarfile as normal file which has offset, seek() and open()
@@ -643,8 +638,10 @@ def file_from_tar(s, inst='HARPS', fib=None, **kwargs):
    pat = {'HARPS': {'A': '_e2ds_A.fits', 'B': '_e2ds_B.fits'}[fib],
           'FEROS': {'A': '.1061.fits', 'B': '.1062.fits'}[fib]} [inst]
    tar = tarfile.open(s)
+
    for member in tar.getmembers():
-       if pat in member.name: extr = member
+      if pat in member.name: 
+         extr = member
 
    if tarmode in (1,2,3) and kwargs.get('pfits') == 2:
       # We could use tar.extractfile(extr) but this requires reopen the tar file
@@ -656,10 +653,23 @@ def file_from_tar(s, inst='HARPS', fib=None, **kwargs):
    elif tarmode in (0,5) and kwargs.get('pfits') == 2:
       # Open the tar file as a normal file and store the position and size of the fits file
       # as attributes.
-      s = type('tarobj', (file,), {})(s, mode='rb')   # since class, because the in the buildin file class we cannot set new attributes
-      s.mem = extr.name
-      s.offset_data = extr.offset_data
-      s.size = extr.size
+
+      
+      s = FitsClass(filepath = s, 
+                    offset_data = extr.offset_data,
+                    name = extr.name,
+                    size=extr.size
+      )
+      # actually creating those new properties
+
+      if 0: # FIXME: remove this after evrything works
+         s = type('tarobj', (file,), {})(s, mode='rb')   # since class, because the in the buildin file class we cannot set new attributes
+
+         s.mem = extr.name
+         s.offset_data = extr.offset_data
+         s.size = extr.size
+
+
       tar.close()
    elif tarmode == 5:
       # does not work with np.fromfile
@@ -710,7 +720,7 @@ class imhead(dict):
             fi = open(s.mother)
          if tarmode==3:
             fi = tarfile.open(s.mother).extractfile(s)
-      elif isinstance(s, (tarfile.ExFileObject, file)):   # tarmode == 5,6
+      elif isinstance(s, (FitsClass)):   # tarmode == 5,6  # FIXME: see if it's using the FITSClass; previously checked for tarfiles and file
          fi = s
       elif s.endswith('.gz'):   # normal file
          fi = gzip.open(s)
@@ -724,14 +734,24 @@ class imhead(dict):
       #with open(s) as fi:
       if 1:
          fi.seek(extpos)
-         for card in iter(lambda:fi.read(80), ''):   # read in 80 byte blocks
+         if isinstance(fi, FitsClass):  # FIXME: temporary solution to this problem; do the other file types work properly? 
+
+            file = fi.file 
+            args = tuple((str.encode(i) for i in args))
+         else:
+            file = fi
+
+
+         for card in iter(lambda:file.read(80), ''):   # read in 80 byte blocks
             NR += 1
-            if card.startswith('END '): break
+            if card.startswith(b'END '): 
+               break
+
             if card.startswith(args):
                #key, val, comment = card.replace("= ","/ ",1).split("/ ")
-               key, val, comment = card.replace(' /','= ',1).split('= ')   # does not parse HARPN.2012-09-03T05-29-56.622 "HIERARCH TNG OBS TARG NAME = 'M1'/ no comment"
+               key, val, comment = card.replace(b' /',b'= ',1).split(b'= ')   # does not parse HARPN.2012-09-03T05-29-56.622 "HIERARCH TNG OBS TARG NAME = 'M1'/ no comment"
                # key, val, comment = card.replace('/','= ',1).split('= ')
-               hdr[key.strip()] = val.strip("' ") if "'" in val else float(val) if '.' in val else int(val)
+               hdr[key.strip()] = val.strip(b"' ") if b"'" in val else float(val) if b'.' in val else int(val)
                #hdr[key.strip()] = val.strip("' ") if any(i in val for i in "'TF") else float(val) if '.' in val and not 'NaN.' in val else int(val) if val.strip(" -").isdigit() else val
                self.comments[key.strip()] = comment
                count -= 1
@@ -787,7 +807,6 @@ class getext(dict):
       if hasattr(s, 'offset_data'):
          filepos = s.offset_data
          fileend = s.offset_data + s.size
-      #pause()
 
       while True:
          exthdr = imhead(self.fileobj, 'EXTNAME', extpos=filepos)
@@ -798,7 +817,7 @@ class getext(dict):
          i += 1
       super(getext, self).__init__(ext)
 
-   def getdata(self, extname=None, o=np.s_[:]):
+   def getdata(self, extname=None, order=np.s_[:]):
       if extname is None:  # search first extension with data
          extname = 0
          while not self[extname].NAXIS: extname += 1
@@ -814,11 +833,11 @@ class getext(dict):
 
 #      with open(self.fileobj) as funit:
       if 1:
-         if o == np.s_[:]: # read all
+         if order == np.s_[:]: # read all
             funit.seek(ext.EXTDATA)
             data = np.fromfile(funit, dtype=dtype, count=ext.NAXIS1*ext.NAXIS2).reshape((ext.NAXIS2,ext.NAXIS1))
          else:
-            funit.seek(ext.EXTDATA+o*ext.NAXIS1*dsize)
+            funit.seek(ext.EXTDATA+order*ext.NAXIS1*dsize)
             data = np.fromfile(funit, dtype=dtype, count=ext.NAXIS1)
 
       if not was_open:
