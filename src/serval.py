@@ -27,7 +27,7 @@ from numpy import std,arange,zeros,where, polynomial,setdiff1d,polyfit,array, ne
 from scipy import interpolate, optimize
 from scipy.optimize import curve_fit
 
-from .utils import pause, stop
+from src.utils import pause, stop
 from .wstat import wstd, wmean, wrms, rms, mlrms, iqr, wsem, nanwsem, nanwstd, naniqr, quantile
 from .read_spec import flag, sflag, def_wlog, brvrefs, Spectrum, airtovac   # flag, sflag, def_wlog
 
