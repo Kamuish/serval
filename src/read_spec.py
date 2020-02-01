@@ -10,14 +10,15 @@ import tarfile
 import warnings
 from collections import namedtuple
 
-
+import time
 import astropy.io.fits as pyfits
 
 #import fitsio
 import numpy as np
 
 from src.utils import pause, stop, FitsClass
-
+import src.brv_we14py as brv_we14py
+import src.sunrise as sunrise
 class nameddict(dict):
    """
    Examples
@@ -126,7 +127,9 @@ class Spectrum:
 
       # scan fits header for times, modes, snr, etc.
       #read_spec(self, filename, inst=inst, pfits=pfits, verb=verb)
+      t = time.time()
       self.scan(self, filename, pfits=pfits)
+      print('After scan: ', time.time() - t)
 
       if verb:
          print("scan %s:"%self.instname, self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
@@ -162,7 +165,6 @@ class Spectrum:
             obsloc = inst.obsloc if hasattr(inst, 'obsloc') else {}
             if self.brvref == 'WE':
                # pure python version
-               import brv_we14py
                #self.bjd, self.berv = brv_we14py.bjdbrv(jd_utc=jd_utc[0], ra=ra, dec=de, obsname=obsname, pmra=targ.pmra, pmdec=targ.pmde, parallax=0., rv=0., zmeas=[0])
                (_, self.bjd, _), (self.berv_start, self.berv, self.berv_end) = brv_we14py.bjdbrv(jd_utc=jd_utcs, ra=ra, dec=de, obsname=obsname, pmra=targ.pmra, pmdec=targ.pmde, parallax=0., rv=0., zmeas=[0], **obsloc)
             elif self.brvref == 'WEhtml':
@@ -660,15 +662,7 @@ def file_from_tar(s, inst='HARPS', fib=None, **kwargs):
                     name = extr.name,
                     size=extr.size
       )
-      # actually creating those new properties
-
-      if 0: # FIXME: remove this after evrything works
-         s = type('tarobj', (file,), {})(s, mode='rb')   # since class, because the in the buildin file class we cannot set new attributes
-
-         s.mem = extr.name
-         s.offset_data = extr.offset_data
-         s.size = extr.size
-
+      # actually creating those n   ew properties
 
       tar.close()
    elif tarmode == 5:
@@ -708,7 +702,8 @@ class imhead(dict):
       hdr = {}
       self.comments = {}
       extpos = kwargs.get('extpos', 0)  # position of the extension with the fitsfile
-      count = kwargs.get('count', -1)
+      count = kwargs.get('count', -1) 
+
       #if not len(args):
          #args = ''   # read all
          #stop( '\n\nimhead: there must be are args; reading all keys not yet supported\n')
@@ -732,33 +727,32 @@ class imhead(dict):
       #pause()
 
       #with open(s) as fi:
-      if 1:
-         fi.seek(extpos)
-         if isinstance(fi, FitsClass):  # FIXME: temporary solution to this problem; do the other file types work properly? 
+      fi.seek(extpos)
+      if isinstance(fi, FitsClass):  # FIXME: temporary solution to this problem; do the other file types work properly? 
 
-            file = fi.file 
-            args = tuple((str.encode(i) for i in args))
-         else:
-            file = fi
+         file = fi.file 
+         args = tuple((str.encode(i) for i in args))
+      else:
+         file = fi
 
+      for card in iter(lambda:file.read(80), ''):   # read in 80 byte blocks 
+         # Header files have the header with 80 bytes blocks -> this reads the header line by line
+         NR += 1
+         if card.startswith(b'END'): 
+            break
+         if card.startswith(args):
+            #key, val, comment = card.replace("= ","/ ",1).split("/ ")
+            key, val, comment = card.replace(b' /',b'= ',1).split(b'= ')   # does not parse HARPN.2012-09-03T05-29-56.622 "HIERARCH TNG OBS TARG NAME = 'M1'/ no comment"
+            # key, val, comment = card.replace('/','= ',1).split('= ')
+            hdr[key.strip().decode('utf-8')] = val.strip(b"' ").decode('utf-8') if b"'" in val else float(val) if b'.' in val else int(val)
+            #hdr[key.strip()] = val.strip("' ") if any(i in val for i in "'TF") else float(val) if '.' in val and not 'NaN.' in val else int(val) if val.strip(" -").isdigit() else val
+            self.comments[key.strip().decode('utf-8')] = comment.decode('utf-8')
+            count -= 1
+            if count==0: 
+               args = () # all found; do not check cards anymore; only read to end
+         
+      hsz = 2880 * ((NR-1)//36 + 1)
 
-         for card in iter(lambda:file.read(80), ''):   # read in 80 byte blocks
-            NR += 1
-            if card.startswith(b'END '): 
-               break
-
-            if card.startswith(args):
-               #key, val, comment = card.replace("= ","/ ",1).split("/ ")
-               key, val, comment = card.replace(b' /',b'= ',1).split(b'= ')   # does not parse HARPN.2012-09-03T05-29-56.622 "HIERARCH TNG OBS TARG NAME = 'M1'/ no comment"
-               # key, val, comment = card.replace('/','= ',1).split('= ')
-               hdr[key.strip()] = val.strip(b"' ") if b"'" in val else float(val) if b'.' in val else int(val)
-               #hdr[key.strip()] = val.strip("' ") if any(i in val for i in "'TF") else float(val) if '.' in val and not 'NaN.' in val else int(val) if val.strip(" -").isdigit() else val
-               self.comments[key.strip()] = comment
-               count -= 1
-               if count==0: args = () # all found; do not check cards anymore; only read to end
-         #NR = (fi.tell()-extpos) / 80
-
-      hsz = 2880 * ((NR-1)/36 + 1)
       dsz = 0     # EXTDATSZ
       self.NAXIS = hdr.get('NAXIS', 0)
       if self.NAXIS:
@@ -769,7 +763,7 @@ class imhead(dict):
          if self.NAXIS > 1:
             self.NAXIS2 = hdr['NAXIS2']
             dsz *= self.NAXIS2
-         dsz = ((dsz/8-1)/2880+1) * 2880
+         dsz = ((dsz//8-1)//2880 +1) * 2880
 
       self.EXTHDRSZ = hsz   # add hdr size
       self.EXTDATA = extpos + hsz
@@ -806,14 +800,20 @@ class getext(dict):
          self.fileobj = s.mother
       if hasattr(s, 'offset_data'):
          filepos = s.offset_data
-         fileend = s.offset_data + s.size
+         fileend = s.offset_data + s.size 
+
 
       while True:
          exthdr = imhead(self.fileobj, 'EXTNAME', extpos=filepos)
-         if exthdr.EXTEND <= filepos: break   # no new records
+         if exthdr.EXTEND <= filepos:
+            print("no new records")
+            break   # no new records
          filepos = exthdr.EXTEND
-         ext[i] = ext[exthdr.get('EXTNAME', i)] = exthdr
-         if filepos == fileend: break   # end of filemember in tarfile
+         ext[i]  = exthdr
+
+         if filepos == fileend: 
+            print("end of filemember")
+            break   # end of filemember in tarfile
          i += 1
       super(getext, self).__init__(ext)
 
