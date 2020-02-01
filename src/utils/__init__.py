@@ -7,3 +7,4 @@ from .gplot import *
 from .pause import pause, stop
 
 
+from .fits_files_class import FitsClass
