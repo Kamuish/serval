@@ -932,6 +932,7 @@ class mpfit:
 		if numpy.any(qmin & qmax & (maxstep<minstep)):
 			self.errmsg = 'ERROR: MPMINSTEP is greater than MPMAXSTEP'
 			return
+		print("got here")
 		wh = (numpy.nonzero((qmin!=0.) | (qmax!=0.)))[0]
 		qminmax = len(wh > 0)
 
