@@ -10,8 +10,8 @@ def write_handler(write_type, filename, **kwargs):
 
     """
     mappings = {
-        'template': write_template
-        'res': write_res
+        'template': write_template,
+        'res': write_res,
         'fits' : write_fits
     }
     try:
@@ -34,8 +34,10 @@ def write_handler(write_type, filename, **kwargs):
         hdu = pyfits.PrimaryHDU(header=header)
         warnings.resetwarnings() # supress nasty overwrite warning http://pythonhosted.org/pyfits/users_guide/users_misc.html
         warnings.filterwarnings('ignore', category=UserWarning, append=True)
-        hdu.writeto(filename, clobber=clobber, output_verify='fix')
+        hdu.writeto(filename, overwrite=clobber, output_verify='fix')
         warnings.resetwarnings()
         warnings.filterwarnings('always', category=UserWarning, append=True)
-
-    mappings[write_type](filename, header, clobber, **kwargs)
+    mappings[write_type](filename = filename,
+                        header_use = header,
+                        clobber_value = clobber, 
+                        **kwargs)

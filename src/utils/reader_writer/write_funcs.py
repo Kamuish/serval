@@ -1,7 +1,8 @@
 import astropy.io.fits as pyfits 
+import numpy as np 
 
-def write_template(filename, header, clobber, **kwargs):
 
+def write_template(filename, header_use, *args, **kwargs):
     flux = kwargs['flux']
     wave = kwargs['wave']
     if isinstance(flux, np.ndarray):
@@ -23,25 +24,25 @@ def write_template(filename, header, clobber, **kwargs):
     pyfits.setval(filename, 'EXTNAME', value='WAVE', ext=2)
     #fitsio.write(filename, flux)
 
-def write_res(filename, header, **kwargs):
+def write_res(filename, header_use, *args, **kwargs):
 
     datas = kwargs['data']
     extnames = kwargs['extnames']
     for i,extname in enumerate(extnames):
         data = datas[extname]
         if isinstance(data, np.ndarray):
-        pyfits.append(filename, data)
+            pyfits.append(filename, data)
         else:
-        1/0
+            1/0
 
         pyfits.setval(filename, 'EXTNAME', value=extname, ext=i+1)
     #fitsio.write(filename, flux)
 
-def write_fits(filename, header, clobber, **kwargs):
+def write_fits(filename, header_use, clobber_value, **kwargs):
 
     data = kwargs['data']
     warnings.resetwarnings() # supress nasty overwrite warning http://pythonhosted.org/pyfits/users_guide/users_misc.html
     warnings.filterwarnings('ignore', category=UserWarning, append=True)
-    pyfits.writeto(filename, data, header, clobber=clobber, output_verify='fix')
+    pyfits.writeto(filename, data, header, overwrite=clobber_value, output_verify='fix')
     warnings.resetwarnings()
     warnings.filterwarnings('always', category=UserWarning, append=True)
