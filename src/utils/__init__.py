@@ -8,3 +8,5 @@ from .pause import pause, stop
 
 
 from .fits_files_class import FitsClass
+
+from .reader_writer.write_handler import write_handler
