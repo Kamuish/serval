@@ -968,38 +968,37 @@ def serval():
    with open(construct_path('info'), 'w') as infofile:
       infowriter = csv.writer(infofile, delimiter=';', lineterminator="\n")
 
-   for n,filename in enumerate(files):   # scanning fitsheader
-      print('%3i/%i' % (n+1, nspec))
-      to = time.time()
-      sp = Spectrum(filename, inst=inst, pfits=2 if 'HARPS' in inst.name else True, drs=drs, fib=fib, targ=targ, verb=True)
-      print('222', time.time() - to)
+      for n,filename in enumerate(files):   # scanning fitsheader
+         print('%3i/%i' % (n+1, nspec))
+         to = time.time()
+         sp = Spectrum(filename, inst=inst, pfits=2 if 'HARPS' in inst.name else True, drs=drs, fib=fib, targ=targ, verb=True)
+         print('222', time.time() - to)
 
-      splist.append(sp)
-      sp.sa = targ.sa / 365.25 * (sp.bjd-splist[0].bjd)
-      sp.header = None   # saves memory(?), but needs re-read (?)
-      if inst.name == 'HARPS' and drs: sp.ccf = read_harps_ccf(filename)
-      if sp.sn55 < snmin or np.isnan(sp.sn55): sp.flag |= sflag.lowSN
-      if sp.sn55 > snmax or np.isnan(sp.sn55): sp.flag |= sflag.hiSN
-      if distmax and sp.ra and sp.de:
-         # check distance for mis-pointings
-         # yet no proper motion included
-         ra = (targ.ra[0] + (targ.ra[1]/60 + targ.ra[2]/3600)* np.sign(targ.ra[0]))*15   # [deg]
-         de = targ.de[0] + (targ.de[1]/60 + targ.de[2]/3600)* np.sign(targ.de[0])   # [deg]
-         dist = np.sqrt(((sp.ra-ra)*np.cos(np.deg2rad(sp.de)))**2 + (sp.de-de)**2) * 3600
-         if dist > distmax: sp.flag |= sflag.dist
-      if not sp.flag:
-         if SN55best < sp.sn55 < snmax:
-            SN55best = sp.sn55
-            spi = n
-      else:
-         with open(badfile, 'w') as bad_file:
-            print(sp.bjd, sp.ccf.rvc, sp.ccf.err_rvc, sp.timeid, sp.flag, file=bad_file)
+         splist.append(sp)
+         sp.sa = targ.sa / 365.25 * (sp.bjd-splist[0].bjd)
+         sp.header = None   # saves memory(?), but needs re-read (?)
+         if inst.name == 'HARPS' and drs: sp.ccf = read_harps_ccf(filename)
+         if sp.sn55 < snmin or np.isnan(sp.sn55): sp.flag |= sflag.lowSN
+         if sp.sn55 > snmax or np.isnan(sp.sn55): sp.flag |= sflag.hiSN
+         if distmax and sp.ra and sp.de:
+            # check distance for mis-pointings
+            # yet no proper motion included
+            ra = (targ.ra[0] + (targ.ra[1]/60 + targ.ra[2]/3600)* np.sign(targ.ra[0]))*15   # [deg]
+            de = targ.de[0] + (targ.de[1]/60 + targ.de[2]/3600)* np.sign(targ.de[0])   # [deg]
+            dist = np.sqrt(((sp.ra-ra)*np.cos(np.deg2rad(sp.de)))**2 + (sp.de-de)**2) * 3600
+            if dist > distmax: sp.flag |= sflag.dist
+         if not sp.flag:
+            if SN55best < sp.sn55 < snmax:
+               SN55best = sp.sn55
+               spi = n
+         else:
+            with open(badfile, 'w') as bad_file:
+               print(sp.bjd, sp.ccf.rvc, sp.ccf.err_rvc, sp.timeid, sp.flag, file=bad_file)
+         
+         with open(bervfile, 'w') as berv_file:
+            print(sp.bjd, sp.berv, sp.drsbjd, sp.drsberv, sp.drift, sp.timeid, sp.tmmean, sp.exptime, sp.berv_start, sp.berv_end, file=berv_file)
+         infowriter.writerow([sp.timeid, sp.bjd, sp.berv, sp.sn55, sp.obj, sp.exptime, sp.ccf.mask, sp.flag, sp.airmass, sp.ra, sp.de])
       
-      with open(bervfile, 'w') as berv_file:
-         print(sp.bjd, sp.berv, sp.drsbjd, sp.drsberv, sp.drift, sp.timeid, sp.tmmean, sp.exptime, sp.berv_start, sp.berv_end, file=berv_file)
-      infowriter.writerow([sp.timeid, sp.bjd, sp.berv, sp.sn55, sp.obj, sp.exptime, sp.ccf.mask, sp.flag, sp.airmass, sp.ra, sp.de])
-      #print >>infofile, sp.timeid, sp.bjd, sp.berv, sp.sn55, sp.obj, sp.exptime, sp.ccf.mask, sp.flag
-
    sys.stdout.logname(obj+'/log.'+obj)
 
    t1 = time.time() - t0
