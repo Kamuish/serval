@@ -33,6 +33,7 @@ from .read_spec import flag, sflag, def_wlog, brvrefs, Spectrum, airtovac, read_
 
 from .calcspec import redshift, dopshift, barshift, Calcspec ,qfacmask
 
+import src.calcspec as calcspec
 from .targ import Targ
 import src.cubicSpline as cubicSpline
 import src.cspline as spl
@@ -699,7 +700,9 @@ def serval():
 
    sys.stdout = Logger()
 
-   global obj, targ, oset, coadd, coset, last, tpl, sp, fmod, reana, inst, fib, look, looki, lookt, lookp, lookssr, pmin, pmax, debug, pspllam, kapsig, nclip, atmfile, skyfile, atmwgt, omin, omax, ptmin, ptmax, driftref, deg, targrv, tplrv
+   global v_lo,v_hi,v_step, obj, targ, oset, coadd, coset, last, tpl, sp, fmod, reana, inst, fib, look, looki, lookt, lookp, lookssr, pmin, pmax, debug, pspllam, kapsig, nclip, atmfile, skyfile, atmwgt, omin, omax, ptmin, ptmax, driftref, deg, targrv, tplrv
+   v_lo, v_hi, v_step = -5.5, 5.6, 0.1
+
 
    outdir = obj + '/'
    fibsuf = '_B' if inst=='FEROS' and fib=='B' else ''
