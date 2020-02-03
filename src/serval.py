@@ -19,7 +19,7 @@ import resource
 import stat as os_stat
 import sys
 import time
-
+import datetime 
 import importlib
 
 import numpy as np
@@ -27,7 +27,7 @@ from numpy import std,arange,zeros,where, polynomial,setdiff1d,polyfit,array, ne
 from scipy import interpolate, optimize
 from scipy.optimize import curve_fit
 
-from src.utils import pause, stop
+from src.utils import pause, stop, write_handler
 from .wstat import wstd, wmean, wrms, rms, mlrms, iqr, wsem, nanwsem, nanwstd, naniqr, quantile
 from .read_spec import flag, sflag, def_wlog, brvrefs, Spectrum, airtovac, read_harps_ccf   # flag, sflag, def_wlog
 
@@ -368,10 +368,10 @@ def getHalpha(v, typ='Halpha', line_o=None, rel=False, plot=False):
 
 def polyreg(x2, y2, e_y2, v, deg=1, retmod=True):   # polynomial regression
    """Returns polynomial coefficients and goodness of fit."""
-   fmod = calcspec(x2, v, 1.)  # get the shifted template
+   fmod = Calcspec(x2, v, 1.)  # get the shifted template
    if 0: # python version
       ind = fmod>0.01     # avoid zero flux, negative flux and overflow
-      p,stat = polynomial.polyfit(x2[ind]-calcspec.wcen, y2[ind]/fmod[ind], deg-1, w=fmod[ind]/e_y2[ind], full=True)
+      p,stat = polynomial.polyfit(x2[ind]-Calcspec.wcen, y2[ind]/fmod[ind], deg-1, w=fmod[ind]/e_y2[ind], full=True)
       SSR = stat[0][0]
    else: # pure c version
       pstat = np.empty(deg*2-1)
@@ -381,7 +381,7 @@ def polyreg(x2, y2, e_y2, v, deg=1, retmod=True):   # polynomial regression
       ind = 0.0001
       # no check for zero division inside _pKolynomial.polyfit!
       #pause()
-      SSR = _pKolynomial.polyfit(x2, y2, e_y2, fmod, ind, x2.size, calcspec.wcen, deg, p, lhs, pstat)
+      SSR = _pKolynomial.polyfit(x2, y2, e_y2, fmod, ind, x2.size, Calcspec.wcen, deg, p, lhs, pstat)
       if SSR < 0:
          ii, = np.where((e_y2<=0) & (fmod>0.01))
          print('WARNING: Matrix is not positive definite.', 'Zero or negative yerr values for ', ii.size, 'at', ii)
@@ -389,10 +389,10 @@ def polyreg(x2, y2, e_y2, v, deg=1, retmod=True):   # polynomial regression
          #pause(0)
 
       if 0: #abs(v)>200./1000.:
-         gplot(x2,y2,calcspec(x2, v, *p), ' w lp,"" us 1:3 w l, "" us 1:($2-$3) t "res [v=%f,SSR=%f]"'%(v, SSR))
+         gplot(x2,y2,Calcspec(x2, v, *p), ' w lp,"" us 1:3 w l, "" us 1:($2-$3) t "res [v=%f,SSR=%f]"'%(v, SSR))
          pause('v, SSR: ',v,SSR)
    if retmod: # return the model
-      return p, SSR, calcspec(x2, v, *p, fmod=fmod)
+      return p, SSR, Calcspec(x2, v, *p, fmod=fmod)
    return p, SSR
 
 def gauss(x, a0, a1, a2, a3):
@@ -624,8 +624,8 @@ def fitspec(tpl, w, f, e_f=None, v=0, vfix=False, clip=None, nclip=1, keep=None,
    """
    if keep is None: keep = np.arange(len(w))
    if clip is None: nclip = 0   # number of clip iterations; default 1
-   calcspec.wcen = np.mean(w[keep])
-   calcspec.tpl = tpl
+   Calcspec.wcen = np.mean(w[keep])  # FIXME: oh god, why does this work ?
+   Calcspec.tpl = tpl
 
    p = np.array([v, 1.] + [0]*deg)   # => [v,1,0,0,0]
    fMod = np.nan * w
@@ -673,7 +673,7 @@ def fitspec(tpl, w, f, e_f=None, v=0, vfix=False, clip=None, nclip=1, keep=None,
          if df:
             fMod = ft * p[1]     # compute also at bad pixels
          else:
-            fMod = calcspec(w, *p)     # compute also at bad pixels
+            fMod = Calcspec(w, *p)     # compute also at bad pixels
          gplot.y2tics().ytics('nomir; set y2range [-5:35];')
          gplot(w,fMod,' w lp pt 7 ps 0.5 t "fmod"')
          gplot+(w[keep],fMod[keep],' w lp pt 7 ps 0.5 t "fmod[keep]"')
@@ -687,7 +687,7 @@ def fitspec(tpl, w, f, e_f=None, v=0, vfix=False, clip=None, nclip=1, keep=None,
    if df is not None:
       fMod[indmod] = tpl[1][indmod]*p[1] - df[indmod]*p[1]*p[0]/c  # compute also at bad pixels
    else:
-      fMod[indmod] = calcspec(w[indmod], *p)   # compute also at bad pixels
+      fMod[indmod] = Calcspec(w[indmod], *p)   # compute also at bad pixels
 
    if chi2map:
       return par, fMod, keep, stat, ssr
@@ -877,7 +877,7 @@ def serval():
    halfile = construct_path('halpha')
    nadfile = construct_path('nad')
    irtfile = construct_path('cairt')
-   dfwfile = construct_path('dlw')
+   dlwfile = construct_path('dlw')
 
    # (echo 0 0 ; awk '{if($2!=x2){print x; print $0}; x=$0; x2=$2;}' telluric_mask_atlas.dat )> telluric_mask_atlas_short.dat
    #################################
@@ -1318,7 +1318,7 @@ def serval():
                # get poly from fit with mean RV
                par, fmod, keep, stat = fitspec(TPL[o],
                   w2[i0:ie], sp.f[i0:ie], sp.e[i0:ie], v=0, vfix=True, keep=pind, v_step=False, clip=kapsig, nclip=nclip, deg=deg)   # RV  (in dopshift instead of v=RV; easier masking?)
-               poly = calcspec(w2, *par.params, retpoly=True)
+               poly = Calcspec(w2, *par.params, retpoly=True)
                #gplot( w2,sp.fo/poly); ogplot( w2[i0:ie],fmod/poly[i0:ie],' w lp ps 0.5'); ogplot(ww[o], ff[o],'w l')
                wmod[n] = w2
                mod[n] = sp.f / poly   # be careful if  poly<0
@@ -1406,12 +1406,12 @@ def serval():
                   # flexible sig
                   # sig = np.sqrt(spl._ucbspl_fit(wmod[ind], res**2, K=nk/5)[0])  # not good, van be negative
                   # get fraction of the data to each knot for weighting
-                  G, kkk = spl._cbspline_Bk(wmod[ind], nk/5)
-                  chik = np.zeros(nk/5+2)   # chi2 per knot
-                  normk = np.zeros(nk/5+2)  # normalising factor to compute local chi2_red
+                  G, kkk = spl._cbspline_Bk(wmod[ind], nk//5) # // for python2 compatibility
+                  chik = np.zeros(nk//5+2)   # chi2 per knot
+                  normk = np.zeros(nk//5+2)  # normalising factor to compute local chi2_red
                   for k in range(4):
-                     normk += np.bincount(kkk+k, G[k], nk/5+2)
-                     chik += np.bincount(kkk+k, res**2 * G[k], nk/5+2)
+                     normk += np.bincount(kkk+k, G[k], nk//5+2)
+                     chik += np.bincount(kkk+k, res**2 * G[k], nk//5+2)
 
                   vara = spl.ucbspl(chik/normk, wmod[ind].min(), wmod[ind].max())
                   sig = np.sqrt(vara(wmod[ind]))
@@ -1538,9 +1538,25 @@ def serval():
          spt.header['HIERARCH SERVAL TARG RV SRC'] = (targrv_src, 'Origin of TARG RV')
 
          # Oversampled template
-         write_template(tpl, ff, ww, spt.header, hdrref='', clobber=1)
+
+         config_dict = {
+               'clobber':1,
+               'hdrref':'',
+               'header': spt.header,
+               'flux': ff,
+               'wave':ww
+         }
+         write_handler('template', tpl,  ** config_dict)
          # Knot sampled template
-         write_res(outdir+obj+'.fits', {'spec':fk, 'sig':ek, 'wave':wk, 'nmap':bk}, tfmt, spt.header, hdrref='', clobber=1)
+
+         config_dict = {
+               'clobber':1,
+               'hdrref':'',
+               'header': spt.header,
+               'data': {'spec':fk, 'sig':ek, 'wave':wk, 'nmap':bk},
+               'extnames': tfmt
+         }
+         write_handler('res', outdir+obj+'.fits', ** config_dict)
          os.system("ln -sf " + os.path.basename(tpl) + " " + outdir + "template.fits")
          print('\ntemplate written to ', tpl)
          if 0: os.system("ds9 -mode pan '"+tpl+"[1]' -zoom to 0.08 8 "+tpl+"  -single &")
@@ -1821,7 +1837,7 @@ def serval():
                   #ftmod_tmp[i0:i1] = calcspec(ww[o][i0:i1], *par.params) #calcspec does not work when w < wtmin
                   #ftmod_tmp[0:i0] = ftmod_tmp[i0]
                   #ftmod_tmp[i1:] = ftmod_tmp[i1-1]
-                  poly = calcspec(wmod, *par.params, retpoly=True)
+                  poly = Calcspec(wmod, *par.params, retpoly=True)
 
 
                   '''estimate differential changes in line width ("FWHM")
@@ -1854,7 +1870,7 @@ def serval():
                      #pause(o)
 
                      f2 = f2c = (f2-a0)/a1 # correct observation
-
+                     print("GOT HERE; serval.py : ", 1, e2[keep], 1/e2[keep])
                      dlwo = c**2 * np.dot(1/e2[keep]**2*ddy[keep], (f2c-f2mod)[keep]) / np.dot(1/e2[keep]**2*ddy[keep], ddy[keep])
                      e_dlwo = c**2 * np.sqrt(1 / np.dot(1/e2[keep]**2, ddy[keep]**2))
                   else:
@@ -1877,7 +1893,6 @@ def serval():
             snr[n,o] = stat['snr']
             rchi[n,o] = stat['std']
             Nok[n,o] = len(keep)
-
             if not diff_rv:
                vgrid = chi2mapo[0]
                chi2map[o] = chi2mapo[1] # chi2mapo[1].min() - (a[0]+a[1]*v+a[2]*v**2)
