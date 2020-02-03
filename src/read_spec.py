@@ -1,3 +1,5 @@
+#         w, f, e, b = read_spec(self, self.filename, inst=self.inst, orders=orders, **kwargs)
+#         w, f, e, b = read_spec(self, self.filename, inst=self.inst, orders=orders, **kwargs)
 #! /usr/bin/env python
 __author__ = 'Mathias Zechmeister'
 __version__ = '2019-03-01'
@@ -115,7 +117,6 @@ class Spectrum:
       self.utc = None
       self.ra = None
       self.de = None
-#      self.obs = type('specdata', (object,), {'lat': None, 'lon': None})
       self.obs = type('specdata', (object,), dict(lat=None, lon=None))
       self.airmass = np.nan
       self.inst = inst
@@ -205,7 +206,6 @@ class Spectrum:
             #self.flag |= sflag.daytime
       if orders is not None:
          self.read_data(orders=orders, wlog=wlog)
-#         self.data(orders=orders, wlog=wlog)
 
    def __get_item__(self, order):
       # spectrum needs to be dict like
@@ -217,7 +217,6 @@ class Spectrum:
       if self.w:
          w, f, e, b = self.w[o], self.f[o], self.e[o], self.bpmap[o]
       else:
-#         w, f, e, b = read_spec(self, self.filename, inst=self.inst, orders=orders, **kwargs)
          w, f, e, b = self.data(self, orders=orders, **kwargs)
          w = np.log(w) if wlog else w.astype(np.float)
          f = f.astype(float)
@@ -245,28 +244,9 @@ def read_spec(self, file_name, inst, plot=False, **kwargs):
    sp = inst.read(self, file_name, **kwargs)
    return sp
 
-   if '.tar' in file_name:
-      s = file_from_tar(file_name, inst=inst, fib=self.fib, **kwargs)
-   if 'HARP' in inst:  sp = read_harps(self, s, inst=inst, **kwargs)
-   elif inst == 'CARM_VIS':  sp = read_carm_vis(self, s, **kwargs)
-   elif inst == 'CARM_NIR':  sp = read_carm_nir(self, s, **kwargs)
-   elif inst == 'FEROS': sp = read_feros(self, s, **kwargs)
-   elif inst == 'FTS': sp = read_fts(self, s, **kwargs)
-   elif inst == 'HPF': sp = read_hpf(self, s, **kwargs)
-   else:
-      return None
-   #if hasattr(s, 'close'):
-      #s.close()
-
-   if plot:
-      gplot.xlabel("'wavelength'").ylabel("'intensity'")
-      for o in range(len(sp.w)):
-         gplot(sp.w[o], sp.f[o], " w lp t 'order %i'"%o)
-         pause(o)
-   return sp
-
 def write_template(filename, flux, wave, header=None, hdrref=None, clobber=False):
-   if not header and hdrref: header = pyfits.getheader(hdrref)
+   if not header and hdrref: 
+      header = pyfits.getheader(hdrref)
    hdu = pyfits.PrimaryHDU(header=header)
    warnings.resetwarnings() # supress nasty overwrite warning http://pythonhosted.org/pyfits/users_guide/users_misc.html
    warnings.filterwarnings('ignore', category=UserWarning, append=True)
@@ -294,7 +274,8 @@ def write_template(filename, flux, wave, header=None, hdrref=None, clobber=False
    #fitsio.write(filename, flux)
 
 def write_res(filename, datas, extnames, header='', hdrref=None, clobber=False):
-   if not header and hdrref: header = pyfits.getheader(hdrref)
+   if not header and hdrref:
+       header = pyfits.getheader(hdrref)
    hdu = pyfits.PrimaryHDU(header=header)
    warnings.resetwarnings() # supress nasty overwrite warning http://pythonhosted.org/pyfits/users_guide/users_misc.html
    warnings.filterwarnings('ignore', category=UserWarning, append=True)
@@ -319,6 +300,7 @@ def write_fits(filename, data, header='', hdrref=None, clobber=True):
    pyfits.writeto(filename, data, header, clobber=clobber, output_verify='fix')
    warnings.resetwarnings()
    warnings.filterwarnings('always', category=UserWarning, append=True)
+
 
 def read_template(filename):
    hdu = pyfits.open(filename)
@@ -374,7 +356,6 @@ def read_harps_ccf(path_to_file):
    e_rvc = hdr.get(HIERARCH+'ESO DRS DVRMS', np.nan) / 1000.   # [km/s]
    bis = hdr.get(HIERARCH+'ESO DRS BIS SPAN', np.nan)
    return ccf(rvc, e_rvc, bis, fwhm, contrast, mask)
-
 
 def read_csfs_vis(self, s, orders=None, pfits=True, verb=True):
    """
@@ -436,7 +417,6 @@ def read_csfs_vis(self, s, orders=None, pfits=True, verb=True):
       return w, f, e, bpmap
 
    if verb: print("read_carm_vis:", self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
-
 
 def read_feros(self, s, orders=None, pfits=True, verb=True):
    """
@@ -554,7 +534,6 @@ def read_feros(self, s, orders=None, pfits=True, verb=True):
       hdulist.close()
       return w, f, e, bpmap
    hdulist.close()
-
 
 def read_fts(self,s, orders=None, filename=None, pfits=True, verb=True):
    """
@@ -824,20 +803,19 @@ class getext(dict):
       dtype = {-32: '>f4', -64: '>f8'}[ext.BITPIX]
       dsize = {-32: 4, -64: 8}[ext.BITPIX]
       was_open = True
-      if isinstance(self.fileobj, (tarfile.ExFileObject, file)):
+      if isinstance(self.fileobj, (tarfile.ExFileObject, FitsClass)):
          funit = self.fileobj
       else:
          funit = open(self.fileobj)
          was_open = False
 
-#      with open(self.fileobj) as funit:
       if 1:
          if order == np.s_[:]: # read all
             funit.seek(ext.EXTDATA)
-            data = np.fromfile(funit, dtype=dtype, count=ext.NAXIS1*ext.NAXIS2).reshape((ext.NAXIS2,ext.NAXIS1))
+            data = np.fromfile(funit.open_file, dtype=dtype, count=ext.NAXIS1*ext.NAXIS2).reshape((ext.NAXIS2,ext.NAXIS1))
          else:
             funit.seek(ext.EXTDATA+order*ext.NAXIS1*dsize)
-            data = np.fromfile(funit, dtype=dtype, count=ext.NAXIS1)
+            data = np.fromfile(funit.open_file, dtype=dtype, count=ext.NAXIS1)
 
       if not was_open:
          funit.close()
@@ -885,44 +863,44 @@ def bary(obj,bjd, exptime):
 
 def airtovac(wave_air):
    """
-taken from idl astrolib
-;+
-; NAME:
-;       AIRTOVAC
-; PURPOSE:
-;       Convert air wavelengths to vacuum wavelengths 
-; EXPLANATION:
-;       Wavelengths are corrected for the index of refraction of air under 
-;       standard conditions.  Wavelength values below 2000 A will not be 
-;       altered.  Uses relation of Ciddor (1996).
-;
-; CALLING SEQUENCE:
-;       AIRTOVAC, WAVE_AIR, [ WAVE_VAC]
-;
-; INPUT/OUTPUT:
-;       WAVE_AIR - Wavelength in Angstroms, scalar or vector
-;               If this is the only parameter supplied, it will be updated on
-;               output to contain double precision vacuum wavelength(s). 
-; OPTIONAL OUTPUT:
-;        WAVE_VAC - Vacuum wavelength in Angstroms, same number of elements as
-;                 WAVE_AIR, double precision
-;
-; EXAMPLE:
-;       If the air wavelength is  W = 6056.125 (a Krypton line), then 
-;       AIRTOVAC, W yields an vacuum wavelength of W = 6057.8019
-;
-; METHOD:
-;	Formula from Ciddor 1996, Applied Optics 62, 958
-;
-; NOTES:
-;       Take care within 1 A of 2000 A.   Wavelengths below 2000 A *in air* are
-;       not altered.
-; REVISION HISTORY
-;       Written W. Landsman                November 1991
-;       Use Ciddor (1996) formula for better accuracy in the infrared 
-;           Added optional output vector, W Landsman Mar 2011
-;       Iterate for better precision W.L./D. Schlegel  Mar 2011
-;-
+   taken from idl astrolib
+   ;+
+   ; NAME:
+   ;       AIRTOVAC
+   ; PURPOSE:
+   ;       Convert air wavelengths to vacuum wavelengths 
+   ; EXPLANATION:
+   ;       Wavelengths are corrected for the index of refraction of air under 
+   ;       standard conditions.  Wavelength values below 2000 A will not be 
+   ;       altered.  Uses relation of Ciddor (1996).
+   ;
+   ; CALLING SEQUENCE:
+   ;       AIRTOVAC, WAVE_AIR, [ WAVE_VAC]
+   ;
+   ; INPUT/OUTPUT:
+   ;       WAVE_AIR - Wavelength in Angstroms, scalar or vector
+   ;               If this is the only parameter supplied, it will be updated on
+   ;               output to contain double precision vacuum wavelength(s). 
+   ; OPTIONAL OUTPUT:
+   ;        WAVE_VAC - Vacuum wavelength in Angstroms, same number of elements as
+   ;                 WAVE_AIR, double precision
+   ;
+   ; EXAMPLE:
+   ;       If the air wavelength is  W = 6056.125 (a Krypton line), then 
+   ;       AIRTOVAC, W yields an vacuum wavelength of W = 6057.8019
+   ;
+   ; METHOD:
+   ;	Formula from Ciddor 1996, Applied Optics 62, 958
+   ;
+   ; NOTES:
+   ;       Take care within 1 A of 2000 A.   Wavelengths below 2000 A *in air* are
+   ;       not altered.
+   ; REVISION HISTORY
+   ;       Written W. Landsman                November 1991
+   ;       Use Ciddor (1996) formula for better accuracy in the infrared 
+   ;           Added optional output vector, W Landsman Mar 2011
+   ;       Iterate for better precision W.L./D. Schlegel  Mar 2011
+   ;-
    """
 
    wave_vac = wave_air * 1.0
