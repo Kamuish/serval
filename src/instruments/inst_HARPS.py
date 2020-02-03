@@ -150,10 +150,10 @@ def data(self, orders, pfits=True):
    drs = self.drs
    if 1:  # read order data
       if hasattr(self, 'hdu'):   # read directly
-         f = self.hdu.getdata(o=orders)
+         f = self.hdu.getdata(order=orders)
          if not drs:
-            e = self.hdu.getdata('SIG', o=orders)
-            w = self.hdu.getdata('WAVE', o=orders)
+            e = self.hdu.getdata('SIG', order=orders)
+            w = self.hdu.getdata('WAVE', order=orders)
       else:
          if not hasattr(self, 'hdulist'):
             scan(self, self.filename)
