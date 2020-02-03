@@ -128,9 +128,7 @@ class Spectrum:
 
       # scan fits header for times, modes, snr, etc.
       #read_spec(self, filename, inst=inst, pfits=pfits, verb=verb)
-      t = time.time()
       self.scan(self, filename, pfits=pfits)
-      print('After scan: ', time.time() - t)
 
       if verb:
          print("scan %s:"%self.instname, self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
@@ -143,7 +141,6 @@ class Spectrum:
       # start and end computed only for WE and WEhtml
       self.bjd_sart, self.berv_start = np.nan, np.nan
       self.bjd_end, self.berv_end = np.nan, np.nan
-      print("entering bary corr")
       if targ and targ.name == 'cal':
          self.bjd, self.berv = self.drsbjd, 0.
       elif targ and targ.ra:  # unique coordinates
@@ -182,7 +179,6 @@ class Spectrum:
       else:
          self.bjd, self.berv = self.drsbjd, self.drsberv
          self.brvref = self.drsname
-      print('left bary corr')
       if self.fib == 'B':
          self.berv = np.nan
          self.drsberv = np.nan
@@ -207,7 +203,6 @@ class Spectrum:
                  (ut < utend < sunris < sunset))      # |UT__R********S_|
          #if not dark:
             #self.flag |= sflag.daytime
-      print("got here")
       if orders is not None:
          self.read_data(orders=orders, wlog=wlog)
 #         self.data(orders=orders, wlog=wlog)
@@ -330,28 +325,28 @@ def read_template(filename):
    #return hdu[1].data, hdu[0].data  # wave, flux
    return hdu[2].data, hdu[1].data, hdu[0].header  # wave, flux
 
-def read_harps_ccf(s):
-   print("READ HARPS CCF: ", s)
+def read_harps_ccf(path_to_file):
    ccf = namedtuple('ccf', 'rvc err_rvc bis fwhm contrast mask')
    tar = None
-   if ".tar" in s:
-      tar = tarfile.open(s)
+   if ".tar" in path_to_file:
+      tar = tarfile.open(path_to_file)
       extr = None
       for member in tar.getmembers():
          if 'A.fits' in member.name:
             if '_ccf_' in member.name and not extr: 
                extr = member
+               print(1)
             if '_bis_' in member.name: 
-               extr = member   # prefer bis
+               extr = member   # prefer bis 
+
       if not extr: 
          return ccf(0,0,0,0,0,0)
-      s = tar.extractfile(extr)
+      s = FitsClass(path_to_file, extr.name, extr.offset_data, extr.size)
    else:
       s = glob.glob(s.replace("_e2ds","_bis_*")) + glob.glob(s.replace("_e2ds","_ccf_*"))
       if s: s = s[0]   # prefer bis
-      else: return ccf(*[np.nan]*6)
-      #else: return ccf(0,0,0,0,0,0)
-   # ccf = namedtuple('ccf', 'rvc err_rvc bis fwhm contrast mask header')
+      else: 
+         return ccf(*[np.nan]*6)
    HIERARCH = 'HIERARCH '
 
    if 1:
@@ -817,7 +812,6 @@ class getext(dict):
          ext[i]  = exthdr
 
          if filepos == fileend: 
-            print("end of filemember")
             break   # end of filemember in tarfile
          i += 1
       super(getext, self).__init__(ext)
