@@ -24,7 +24,7 @@ import src.LUdecomp3
 from numpy import logical_and, asarray,zeros_like,floor,append
 from numpy.core.umath import sqrt, exp, greater, less, cos, add, sin, \
      less_equal, greater_equal
-import src.spl_int
+import src.spl_int as spl_int
 
 
 def spl_c(x,y):
