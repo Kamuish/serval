@@ -2,7 +2,6 @@
 
 class FitsClass():
     def __init__(self, filepath, name, offset_data, size):
-        print('\t OPENING NEW FILE: ', filepath)
         self.file_path = filepath 
         self.open_file = open(filepath, mode = 'rb')
 
