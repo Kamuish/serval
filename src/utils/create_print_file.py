@@ -1,7 +1,7 @@
 
 
 def create_print_file(filename, *args):
-    with open(filename + options[chosen_option], mode = 'w') as file:
+    with open(filename, mode = 'w') as file:
         print(*args, file = file)
 
 
