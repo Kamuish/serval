@@ -411,7 +411,8 @@ Perform Levenberg-Marquardt least-squares minimization, based on MINPACK-1.
 import numpy
 from numpy import sum # @MZ much faster than normal sum!
 import types
-import scipy.lib.blas
+import scipy.lib.blas 
+from numpy import atleast_1d
 
 #	 Original FORTRAN documentation
 #	 **********
@@ -933,11 +934,11 @@ class mpfit:
 			self.errmsg = 'ERROR: MPMINSTEP is greater than MPMAXSTEP'
 			return
 		print("got here")
-		wh = (numpy.nonzero((qmin!=0.) | (qmax!=0.)))[0]
+		wh = (numpy.nonzero(atleast_1d( (qmin!=0.) | (qmax!=0.))))[0]
 		qminmax = len(wh > 0)
 
 		# Finish up the free parameters
-		ifree = (numpy.nonzero(pfixed != 1))[0]
+		ifree = (numpy.nonzero(atleast_1d(pfixed != 1)))[0]
 		nfree = len(ifree)
 		if nfree == 0:
 			self.errmsg = 'ERROR: no free parameters'
@@ -1073,9 +1074,9 @@ class mpfit:
 			# Determine if any of the parameters are pegged at the limits
 			if qanylim:
 				catch_msg = 'zeroing derivatives of pegged parameters'
-				whlpeg = (numpy.nonzero(qllim & (x == llim)))[0]
+				whlpeg = (numpy.nonzero(atleast_1d(qllim & (x == llim))))[0]
 				nlpeg = len(whlpeg)
-				whupeg = (numpy.nonzero(qulim & (x == ulim)))[0]
+				whupeg = (numpy.nonzero(atleast_1d(qulim & (x == ulim))))[0]
 				nupeg = len(whupeg)
 				# See if any "pegged" values should keep their derivatives
 				if nlpeg > 0:
@@ -1191,12 +1192,12 @@ class mpfit:
 							wa1[whupeg] = numpy.clip(wa1[whupeg], numpy.min(wa1), 0.)
 
 						dwa1 = numpy.abs(wa1) > machep
-						whl = (numpy.nonzero(((dwa1!=0.) & qllim) & ((x + wa1) < llim)))[0]
+						whl = (numpy.nonzero(atleast_1d(((dwa1!=0.) & qllim) & ((x + wa1) < llim))))[0]
 						if len(whl) > 0:
 							t = ((llim[whl] - x[whl]) /
 								  wa1[whl])
 							alpha = numpy.min([alpha, numpy.min(t)])
-						whu = (numpy.nonzero(((dwa1!=0.) & qulim) & ((x + wa1) > ulim)))[0]
+						whu = (numpy.nonzero(atleast_1d(((dwa1!=0.) & qulim) & ((x + wa1) > ulim))))[0]
 						if len(whu) > 0:
 							t = ((ulim[whu] - x[whu]) /
 								  wa1[whu])
@@ -1205,7 +1206,7 @@ class mpfit:
 					# Obey any max step values.
 					if qminmax:
 						nwa1 = wa1 * alpha
-						whmax = (numpy.nonzero((qmax != 0.) & (maxstep > 0)))[0]
+						whmax = (numpy.nonzero(atleast_1d((qmax != 0.) & (maxstep > 0))))[0]
 						if len(whmax) > 0:
 							mrat = numpy.max(numpy.abs(nwa1[whmax]) /
 									   numpy.abs(maxstep[ifree[whmax]]))
@@ -1224,10 +1225,10 @@ class mpfit:
 					#        ... nonzero *LIM ... ...zero * LIM
 					ulim1 = ulim * (1 - sgnu * machep) - (ulim == 0) * machep
 					llim1 = llim * (1 + sgnl * machep) + (llim == 0) * machep
-					wh = (numpy.nonzero((qulim!=0) & (wa2 >= ulim1)))[0]
+					wh = (numpy.nonzero(atleast_1d((qulim!=0) & (wa2 >= ulim1))))[0]
 					if len(wh) > 0:
 						wa2[wh] = ulim[wh]
-					wh = (numpy.nonzero((qllim!=0.) & (wa2 <= llim1)))[0]					
+					wh = (numpy.nonzero(atleast_1d((qllim!=0.) & (wa2 <= llim1))))[0]					
 					if len(wh) > 0:
 						wa2[wh] = llim[wh]
 				# endelse
@@ -1383,7 +1384,7 @@ class mpfit:
 				catch_msg = 'computing parameter errors'
 				self.perror = numpy.zeros(nn, dtype=float)
 				d = numpy.diagonal(self.covar)
-				wh = (numpy.nonzero(d >= 0))[0]
+				wh = (numpy.nonzero(atleast_1d(d >= 0)))[0]
 				if len(wh) > 0:
 					self.perror[wh] = numpy.sqrt(d[wh])
 		return
@@ -1553,7 +1554,7 @@ class mpfit:
 		# STEP includes the fixed parameters
 		if step is not None:
 			stepi = step[ifree]
-			wh = (numpy.nonzero(stepi > 0))[0]
+			wh = (numpy.nonzero(atleast_1d(stepi > 0)))[0]
 			if len(wh) > 0:
 				h[wh] = stepi[wh]
 
@@ -1561,7 +1562,7 @@ class mpfit:
 		# DSTEP includes the fixed parameters
 		if len(dstep) > 0:
 			dstepi = dstep[ifree]
-			wh = (numpy.nonzero(dstepi > 0))[0]
+			wh = (numpy.nonzero(atleast_1d(dstepi > 0)))[0]
 			if len(wh) > 0:
 				h[wh] = numpy.abs(dstepi[wh]*x[wh])
 
@@ -1575,7 +1576,7 @@ class mpfit:
 		mask = dside[ifree] == -1
 		if len(ulimited) > 0 and len(ulimit) > 0:
 			mask = (mask | ((ulimited!=0) & (x > ulimit-h)))
-			wh = (numpy.nonzero(mask))[0]
+			wh = (numpy.nonzero(atleast_1d(mask)))[0]
 			if len(wh) > 0:
 				h[wh] = - h[wh]
 		# Loop through parameters, computing the derivative for each
@@ -1760,7 +1761,7 @@ class mpfit:
 			if pivot != 0:
 				# Bring the column of largest norm into the pivot position
 				rmax = numpy.max(rdiag[j:])
-				kmax = (numpy.nonzero(rdiag[j:] == rmax))[0]
+				kmax = (numpy.nonzero(atleast_1d(rdiag[j:] == rmax)))[0]
 				ct = len(kmax)
 				kmax = kmax + j
 				if ct > 0:
@@ -1951,7 +1952,7 @@ class mpfit:
 		# Solve the triangular system for z.  If the system is singular
 		# then obtain a least squares solution
 		nsing = n
-		wh = (numpy.nonzero(sdiag == 0))[0]
+		wh = (numpy.nonzero(atleast_1d(sdiag == 0)))[0]
 		if len(wh) > 0:
 			nsing = wh[0]
 			wa[nsing:] = 0
@@ -2079,7 +2080,7 @@ class mpfit:
 		nsing = n
 		wa1 = qtb.copy()
 		rthresh = numpy.max(numpy.abs(numpy.diagonal(r))) * machep
-		wh = (numpy.nonzero(numpy.abs(numpy.diagonal(r)) < rthresh))[0]
+		wh = (numpy.nonzero(atleast_1d(numpy.abs(numpy.diagonal(r)) < rthresh)))[0]
 		if len(wh) > 0:
 			nsing = wh[0]
 			wa1[wh[0]:] = 0
