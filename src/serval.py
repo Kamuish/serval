@@ -6,6 +6,8 @@ description = '''
 SERVAL - SpEctrum Radial Velocity AnaLyser (%s)
      by %s
 ''' % (__version__, __author__)
+import warnings 
+warnings.filterwarnings('error')
 
 import argparse
 import copy
@@ -2192,10 +2194,14 @@ def builder():
    Spectrum.brvref = brvref
    if tpl and tpl.isdigit(): tpl = int(tpl)
    oset = arg2slice(oset)
-   if isinstance(o_excl, dict): o_excl = arg2slice(o_excl[inst.name]) if inst.name in o_excl else []
-   if isinstance(targrv, dict): targrv = targrv[inst.name] if inst.name in targrv else targrv['else']
-   if coset is None: coset = oset
-   if co_excl is None: co_excl = o_excl
+   if isinstance(o_excl, dict): 
+      o_excl = arg2slice(o_excl[inst.name]) if inst.name in o_excl else []
+   if isinstance(targrv, dict): 
+      targrv = targrv[inst.name] if inst.name in targrv else targrv['else']
+   if coset is None: 
+      coset = oset
+   if co_excl is None: 
+      co_excl = o_excl
 
    if skippre or vtfix or last or isinstance(tpl, str) or driftref:
       niter -= 1
@@ -2224,6 +2230,7 @@ def builder():
    if outfmt == []:
       outfmt = ['fmod', 'err', 'res', 'wave']
 
+   print("There we go -> everything finished")
    if cprofile:
       sys.argv.remove('-cprofile')
       os.system('python -m cProfile -s time -o speed.txt $SERVAL/src/serval.py '+" ".join(sys.argv[1:]))
