@@ -2,7 +2,7 @@ import numpy as np
 import astropy.io.fits as pyfits
 
 import src.cspline as spl
-import src.paraboloid
+import src.paraboloid as paraboloid
 from src.utils.gplot import *
 from src.utils import pause, stop
 from src.wstat import wsem, wmean
@@ -206,7 +206,8 @@ class Chi2Map:
 
             self.crx = cov.Xc[1] * 1000
             self.e_crx = cov.e_a[1] * 1000
-         except:
+         except Exception as e:
+            print(e)
             print("warning: mlCRX failed.")
 
       if 0:
