@@ -6,8 +6,10 @@ description = '''
 SERVAL - SpEctrum Radial Velocity AnaLyser (%s)
      by %s
 ''' % (__version__, __author__)
-import warnings 
-warnings.filterwarnings('error')
+
+if 0:
+   import warnings 
+   warnings.filterwarnings('error')
 
 import argparse
 import copy
