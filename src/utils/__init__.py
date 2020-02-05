@@ -1,3 +1,6 @@
+from .logger import setup_logger
+setup_logger()
+
 from .create_print_file import create_print_file
 
 from .input_handler import build_parser, arg2slice
@@ -14,5 +17,3 @@ from .reader_writer.write_handler import write_handler
 from .reader_writer.reader_handler import read_handler 
 
 
-from .logger import setup_logger
-setup_logger()
