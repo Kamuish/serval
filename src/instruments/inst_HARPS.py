@@ -9,6 +9,11 @@ iomax = {'HARPS': 72, 'HARPN': 69}[name[:5]]
 
 #maskfile = 'telluric_mask_carm_short.dat'
 import time
+
+import astropy.io.fits as pyfits
+
+
+
 def scan(self, filename, pfits=True, verb=False):
    """
    SYNTAX: read_harps(filename)
@@ -22,132 +27,134 @@ def scan(self, filename, pfits=True, verb=False):
            sn55  - S_N order center55
 
    """
+
+   print("inst_harps: pfits -> ", pfits)
    drs = self.drs
    if '.tar' in filename:
-      s = file_from_tar(filename, inst=inst, fib=self.fib, pfits=pfits)
+      file_class = file_from_tar(filename, inst=inst, fib=self.fib, pfits=pfits)
    if isinstance(filename, str) and '.gz' in filename:
       # if filename is isinstance(filename,tarfile.ExFileObject) then filename.position will change !? resulting in:
       # *** IOError: Empty or corrupt FITS file
       pfits = True
+      file_class = filename  # FIXME temporary solution, to fix s being both a tarobject and a string, depending on the filetype
 
-      s = filename  # FIXME temporary solution, to fix s being both a tarobject and a string, depending on the filetype
+   HIERARCH = 'HIERARCH '
+   HIERINST = HIERARCH + {'HARPS': 'ESO ', 'HARPN': 'TNG '}[inst[0:5]]
+   k_tmmean = {'HARPS': HIERINST + 'INS DET1 TMMEAN', 'HARPN': HIERINST + 'EXP_METER_A EXP CENTROID'}[inst[0:5]]
+   # In old HARPN the keyword is different and the value absolute
+   #k_tmmean = {'HARPS': HIERINST + 'INS DET1 TMMEAN', 'HARPN': HIERINST + 'EXP1 TMMEAN'}[inst]
+   if drs:
+      self.HIERDRS = HIERDRS = HIERINST + 'DRS '
+      k_sn55 = HIERDRS + 'SPE EXT SN55'
+      k_berv = HIERDRS + 'BERV'
+      k_bjd = HIERDRS + 'BJD'
+   else:
+      k_sn55 = HIERARCH + 'FOX SNR 55'
+      k_berv = 'E_BERV'
+      k_bjd = 'E_BJD'
 
-   if 1:
-      HIERARCH = 'HIERARCH '
-      HIERINST = HIERARCH + {'HARPS': 'ESO ', 'HARPN': 'TNG '}[inst[0:5]]
-      k_tmmean = {'HARPS': HIERINST + 'INS DET1 TMMEAN', 'HARPN': HIERINST + 'EXP_METER_A EXP CENTROID'}[inst[0:5]]
-      # In old HARPN the keyword is different and the value absolute
-      #k_tmmean = {'HARPS': HIERINST + 'INS DET1 TMMEAN', 'HARPN': HIERINST + 'EXP1 TMMEAN'}[inst]
+   if pfits is True:  # header with pyfits    
+      # output from the file_from_tar does not enter this region -> TODO: better checks ? improve flow of code
+      # TODO: does pyfit open .gz files? seems unlikely
+      self.hdulist = file_class
+      with file_class as file:
+         
+         hdr = file[0].header
+
+   elif pfits==2:     # a faster version
+      args = ('INSTRUME', 'OBJECT', 'MJD-OBS', 'DATE-OBS', 'OBS TARG NAME', 'EXPTIME',
+               'MJD-OBS', 'FILENAME', 'RA', 'DEC', k_tmmean, HIERINST+'DPR TYPE',
+               HIERINST+'DPR TECH', HIERINST+'INS MODE', HIERINST+'OBS TARG NAME')
+      args += (k_bjd, k_berv, k_sn55)
+      # args += (HIERINST+'OBS PI-COI NAME', HIERINST+'OBS PROG ID')
       if drs:
-         self.HIERDRS = HIERDRS = HIERINST + 'DRS '
-         k_sn55 = HIERDRS + 'SPE EXT SN55'
-         k_berv = HIERDRS + 'BERV'
-         k_bjd = HIERDRS + 'BJD'
-      else:
-         k_sn55 = HIERARCH + 'FOX SNR 55'
-         k_berv = 'E_BERV'
-         k_bjd = 'E_BJD'
+         args += (HIERDRS+'BLAZE FILE', HIERDRS+'DRIFT RV USED',
+                  HIERDRS+'CAL TH DEG LL', HIERDRS+'CAL LOC NBO',
+                  HIERDRS+'CAL TH COEFF LL')
+      hdr = imhead(file_class, *args)
 
-      if pfits is True:  # header with pyfits    
-         # output from the file_from_tar does not enter this region -> TODO: better checks ? improve flow of code
-         # TODO: does pyfit open .gz files? seems unlikely
-         self.hdulist = hdulist = pyfits.open(s) # slow 30 ms
-         hdr = self.hdulist[0].header
+      self.hdu = getext(file_class)
 
-      elif pfits==2:     # a faster version
-         args = ('INSTRUME', 'OBJECT', 'MJD-OBS', 'DATE-OBS', 'OBS TARG NAME', 'EXPTIME',
-                 'MJD-OBS', 'FILENAME', 'RA', 'DEC', k_tmmean, HIERINST+'DPR TYPE',
-                 HIERINST+'DPR TECH', HIERINST+'INS MODE', HIERINST+'OBS TARG NAME')
-         args += (k_bjd, k_berv, k_sn55)
-         # args += (HIERINST+'OBS PI-COI NAME', HIERINST+'OBS PROG ID')
-         if drs:
-            args += (HIERDRS+'BLAZE FILE', HIERDRS+'DRIFT RV USED',
-                     HIERDRS+'CAL TH DEG LL', HIERDRS+'CAL LOC NBO',
-                     HIERDRS+'CAL TH COEFF LL')
-         hdr = imhead(s, *args)
+   else:
+      raise NotImplementedError
 
-         self.hdu = getext(s)
+   #self.drs = 'DRS CAL LOC NBO' in "".join(hdr.keys())  # check DRS or FOX
+   self.instname = hdr['INSTRUME'] #if self.drs else 'HARPS'
+   if self.instname not in ('HARPS', 'HARPN'):
+      pause('\nWARNING: inst should be HARPS or HARPN, but got: '+self.inst+'\nSee option -inst for available inst.') 
+   self.HIERARCH = HIERARCH
 
-      else:
-         #hdr = fitsio.read_header(s) no faster?
-         self.f, hdrio = fitsio.read(s, header=True)
-         hdr = dict((key, val.strip() if type(val) is str else val) for key,val in dict(hdrio).items())
-         HIERARCH = ''
+   self.airmass = hdr.get('AIRMASS', np.nan)
+   self.exptime = hdr['EXPTIME']
+   self.mjd = hdr['MJD-OBS']
+   self.dateobs = hdr['DATE-OBS']
+   self.ra = hdr['RA']
+   self.de = hdr['DEC']
+   self.utc = datetime.datetime.strptime(self.dateobs, '%Y-%m-%dT%H:%M:%S.%f')
 
-      #self.drs = 'DRS CAL LOC NBO' in "".join(hdr.keys())  # check DRS or FOX
-      self.instname = hdr['INSTRUME'] #if self.drs else 'HARPS'
-      if self.instname not in ('HARPS', 'HARPN'):
-         pause('\nWARNING: inst should be HARPS or HARPN, but got: '+self.inst+'\nSee option -inst for available inst.') 
-      self.HIERARCH = HIERARCH
+   self.obs.lon = -70.7345
+   self.obs.lat = -29.2584
 
-      self.airmass = hdr.get('AIRMASS', np.nan)
-      self.exptime = hdr['EXPTIME']
-      self.mjd = hdr['MJD-OBS']
-      self.dateobs = hdr['DATE-OBS']
-      self.ra = hdr['RA']
-      self.de = hdr['DEC']
-      self.utc = datetime.datetime.strptime(self.dateobs, '%Y-%m-%dT%H:%M:%S.%f')
+   if k_tmmean not in hdr:
+      warnings.warn('Warning: old HARPN data? Setting tmmean to 0.5!')
+   self.tmmean = hdr.get(k_tmmean, 0.5)
 
-      self.obs.lon = -70.7345
-      self.obs.lat = -29.2584
+   self.drsbjd = hdr.get(k_bjd)
+   if self.drsbjd is None:
+      self.drsbjd = hdr.get('MJD-OBS')
+   #if self.drsbjd: # comment out because the sa cannot be calculated with str
+      #self.drsbjd = repr(self.drsbjd)
+   self.drsberv = hdr.get(k_berv, np.nan)
+   self.sn55 = hdr.get(k_sn55, np.nan)
+   self.blaze = hdr.get(HIERDRS+'BLAZE FILE', 0)
+   self.drift = hdr.get(HIERDRS+'DRIFT RV USED', np.nan)
+   if abs(self.drift) > 1000:
+      # sometimes there are crazy drift values ~2147491.59911, e.g. 2011-06-15T08:11:13.465
+      self.drift = np.nan
 
-      if k_tmmean not in hdr:
-         warnings.warn('Warning: old HARPN data? Setting tmmean to 0.5!')
-      self.tmmean = hdr.get(k_tmmean, 0.5)
+   if self.instname == 'HARPS':
+      # read the comment
+      #if pfits==2: fileid = hdr['DATE-OBS']; self.timeid=fileid #ok!? not always
+      if pfits:
+         if hasattr(hdr, 'comments'):   # pfits==2 or pyfits.__version__>'2.' https://github.com/astropy/pyregion/issues/20
+            fileid = hdr.comments['MJD-OBS']
+         else:
+            fileid = str(hdr.ascardlist()['MJD-OBS'])
+      else: 
+         fileid = hdrio.get_comment('MJD-OBS')
 
-      self.drsbjd = hdr.get(k_bjd)
-      if self.drsbjd is None:
-         self.drsbjd = hdr.get('MJD-OBS')
-      #if self.drsbjd: # comment out because the sa cannot be calculated with str
-         #self.drsbjd = repr(self.drsbjd)
-      self.drsberv = hdr.get(k_berv, np.nan)
-      self.sn55 = hdr.get(k_sn55, np.nan)
-      self.blaze = hdr.get(HIERDRS+'BLAZE FILE', 0)
-      self.drift = hdr.get(HIERDRS+'DRIFT RV USED', np.nan)
-      if abs(self.drift) > 1000:
-         # sometimes there are crazy drift values ~2147491.59911, e.g. 2011-06-15T08:11:13.465
-         self.drift = np.nan
+      self.timeid = fileid[fileid.index('(')+1 : fileid.index(')')]
+   elif self.instname == 'HARPN':
+      self.timeid = fileid = hdr['FILENAME'][6:29]
+      hdr['OBJECT'] = hdr[HIERINST+'OBS TARG NAME'] # HARPN has no OBJECT keyword
 
-      if self.instname == 'HARPS':
-         # read the comment
-         #if pfits==2: fileid = hdr['DATE-OBS']; self.timeid=fileid #ok!? not always
-         if pfits:
-            if hasattr(hdr, 'comments'):   # pfits==2 or pyfits.__version__>'2.' https://github.com/astropy/pyregion/issues/20
-               fileid = hdr.comments['MJD-OBS']
-            else:
-               fileid = str(hdr.ascardlist()['MJD-OBS'])
-         else: fileid = hdrio.get_comment('MJD-OBS')
-         self.timeid = fileid[fileid.index('(')+1 : fileid.index(')')]
-      elif self.instname == 'HARPN':
-         self.timeid = fileid = hdr['FILENAME'][6:29]
-         hdr['OBJECT'] = hdr[HIERINST+'OBS TARG NAME'] # HARPN has no OBJECT keyword
-      #calmode = hdr.get('IMAGETYP',0).split(",")[:2]
-      calmode = hdr.get(HIERINST+'DPR TYPE','NOTFOUND').split(',')[:2]
-      self.calmode = ','.join(calmode)
-      calmodedict = {'STAR,WAVE': 'OBJ,CAL', 'STAR,DARK': 'OBJ,SKY', 'STAR,SKY': 'OBJ,SKY'}
-      if self.calmode in calmodedict:
-         self.calmode = calmodedict[self.calmode]
-      if self.calmode.startswith('WAVE'):
-         self.flag |= sflag.nosci
 
-      if hdr[HIERINST+'DPR TECH'] == 'ECHELLE,ABSORPTION-CELL':
-         self.flag |= sflag.iod
-      if hdr[HIERINST+'INS MODE'] == 'EGGS':
-         self.flag |= sflag.config
+   calmode = hdr.get(HIERINST+'DPR TYPE','NOTFOUND').split(',')[:2]
+   self.calmode = ','.join(calmode)
+   calmodedict = {'STAR,WAVE': 'OBJ,CAL', 'STAR,DARK': 'OBJ,SKY', 'STAR,SKY': 'OBJ,SKY'}
+   if self.calmode in calmodedict:
+      self.calmode = calmodedict[self.calmode]
+   if self.calmode.startswith('WAVE'):
+      self.flag |= sflag.nosci
 
-      # in May 29th 2015 (BJD = 2457171.9481) there was the fibre intervention
-      if inst == 'HARPSpre' and self.timeid > '2015-05-29T':
-         self.flag |= sflag.config
-      if inst == 'HARPSpost' and self.timeid <= '2015-05-29T':
-         self.flag |= sflag.config
+   if hdr[HIERINST+'DPR TECH'] == 'ECHELLE,ABSORPTION-CELL':
+      self.flag |= sflag.iod
+   if hdr[HIERINST+'INS MODE'] == 'EGGS':
+      self.flag |= sflag.config
 
-      hdr['OBJECT'] = hdr.get('OBJECT', 'FOX')
-      self.header = self.hdr = hdr # self.header will be set to None
-      print("END OF HARPS scan")
+   # in May 29th 2015 (BJD = 2457171.9481) there was the fibre intervention
+   if inst == 'HARPSpre' and self.timeid > '2015-05-29T':
+      self.flag |= sflag.config
+   if inst == 'HARPSpost' and self.timeid <= '2015-05-29T':
+      self.flag |= sflag.config
+
+   hdr['OBJECT'] = hdr.get('OBJECT', 'FOX')
+   self.header = self.hdr = hdr # self.header will be set to None
 
 def data(self, orders, pfits=True):
    hdr = self.hdr
    drs = self.drs
+
    if 1:  # read order data
       if hasattr(self, 'hdu'):   # read directly
          f = self.hdu.getdata(order=orders)
@@ -155,19 +162,29 @@ def data(self, orders, pfits=True):
             e = self.hdu.getdata('SIG', order=orders)
             w = self.hdu.getdata('WAVE', order=orders)
       else:
+
          if not hasattr(self, 'hdulist'):
+
             scan(self, self.filename)
-         f = self.hdulist[0 if drs else 'SPEC'].section[orders]
+         
+         print("inst_Harps 2: ", self.hdulist.file_path)
+         with self.hdulist as hdu:
+            f = hdu[0 if drs else 'SPEC'].section[orders]  # sections are equivalent to data
+
          if not drs:
-            e = self.hdulist['WAVE'].section[orders]
-            w = self.hdulist['SIG'].section[orders]
+            print('not drs')
+            with self.hdulist as file:
+               hdulist =  file
+               e = self.hdulist['WAVE'].section[orders]
+               w = self.hdulist['SIG'].section[orders]
 
       if not drs:
          f *= 100000
          e *= 100000
 
       bpmap = np.isnan(f).astype(int)   # flag 1 for nan
-      if not drs: bpmap[e==0] |= flag.nan
+      if not drs: 
+         bpmap[e==0] |= flag.nan
       if drs:
          # print " applying wavelength solution ", file
          # omax = self.hdu['SPEC'].NAXIS1
