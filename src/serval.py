@@ -138,9 +138,11 @@ class Logger(object):
          self.logbuf += message
 
    def logname(self, logfilename):
-       self.logfile = open(logfilename, 'a')
-       self.logfile.write(self.logbuf)
-       print(('logging to', logfilename))
+      with open(logfilename, 'a') as logfile:
+         logfile.write(self.logbuf)
+         print(('logging to', logfilename))
+   
+
 
 def minsec(t): return '%um%.3fs' % divmod(t, 60)   # format time
 
@@ -703,7 +705,7 @@ def fitspec(tpl, w, f, e_f=None, v=0, vfix=False, clip=None, nclip=1, keep=None,
 
 def serval():
 
-   sys.stdout = Logger()
+   #sys.stdout = Logger()
 
    global v_lo,v_hi,v_step, obj, targ, oset, coadd, coset, last, tpl, sp, fmod, reana, inst, fib, look, looki, lookt, lookp, lookssr, pmin, pmax, debug, pspllam, kapsig, nclip, atmfile, skyfile, atmwgt, omin, omax, ptmin, ptmax, driftref, deg, targrv, tplrv
    v_lo, v_hi, v_step = -5.5, 5.6, 0.1
@@ -1008,7 +1010,7 @@ def serval():
             print(sp.bjd, sp.berv, sp.drsbjd, sp.drsberv, sp.drift, sp.timeid, sp.tmmean, sp.exptime, sp.berv_start, sp.berv_end, file=berv_file)
          infowriter.writerow([sp.timeid, sp.bjd, sp.berv, sp.sn55, sp.obj, sp.exptime, sp.ccf.mask, sp.flag, sp.airmass, sp.ra, sp.de])
       
-   sys.stdout.logname(obj+'/log.'+obj)
+   #sys.stdout.logname(obj+'/log.'+obj)
 
    t1 = time.time() - t0
    print(nspec, "spectra read (%s)\n" % minsec(t1))
@@ -2148,7 +2150,8 @@ def serval():
 
    if not driftref and nspec>1:
       x = analyse_rv(obj, postiter=postiter, fibsuf=fibsuf, safemode=safemode)
-      if safemode<2: pause('TheEnd')
+      if safemode<2: 
+         pause('TheEnd')
 
 
 def flexdefault(arg):
@@ -2234,7 +2237,6 @@ def builder():
    if outfmt == []:
       outfmt = ['fmod', 'err', 'res', 'wave']
 
-   print("There we go -> everything finished")
    if cprofile:
       sys.argv.remove('-cprofile')
       os.system('python -m cProfile -s time -o speed.txt $SERVAL/src/serval.py '+" ".join(sys.argv[1:]))
@@ -2257,7 +2259,7 @@ def builder():
       os.system('rm -f .pdbrc')
 
    if not pdb:
-      sys.exit(serval())
+      serval()
    else:
       try:
          sys.exit(serval())
