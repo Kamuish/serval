@@ -33,7 +33,7 @@ from scipy.optimize import curve_fit
 
 from src.utils import pause, stop, write_handler
 from .wstat import wstd, wmean, wrms, rms, mlrms, iqr, wsem, nanwsem, nanwstd, naniqr, quantile
-from .read_spec import flag, sflag, def_wlog, brvrefs, Spectrum, airtovac, read_harps_ccf   # flag, sflag, def_wlog
+from .read_spec import flag, sflag, def_wlog, brvrefs, Spectrum, airtovac   # flag, sflag, def_wlog
 
 from .calcspec import redshift, dopshift, barshift, Calcspec ,qfacmask
 
