@@ -5,7 +5,7 @@ from src.utils import FitsClass
 
 import glob
 from src.read_spec import imhead
-
+import numpy as np 
 
 def read_template(filename):
    hdu = pyfits.open(filename)
