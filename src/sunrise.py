@@ -1,5 +1,5 @@
 import logging 
-logger ? logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 def sun(YYYY, MM, DD, lon=-74.3, lat=40.9, zenith='nautical', rise=True):
    '''
    Sunrise/Sunset Algorithm
