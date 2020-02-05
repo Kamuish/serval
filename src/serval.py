@@ -119,30 +119,6 @@ def Using(point, verb=False):
     return (usage[2]*resource.getpagesize())/1000000.0
 
 
-class Logger(object):
-
-   def __init__(self):
-      self.terminal = sys.stdout
-      self.logfile = None # open(logfilename, "a")
-      self.logbuf = ''
-
-   def flush(self):
-      # dummy for function astropy iers download; progress bar will not be shown
-      pass 
-
-   def write(self, message):   # fork the output to stdout and file
-      self.terminal.write(message)
-      if self.logfile:
-         self.logfile.write(message)
-      else:
-         self.logbuf += message
-
-   def logname(self, logfilename):
-      with open(logfilename, 'a') as logfile:
-         logfile.write(self.logbuf)
-         print(('logging to', logfilename))
-   
-
 
 def minsec(t): return '%um%.3fs' % divmod(t, 60)   # format time
 
@@ -1010,7 +986,6 @@ def serval():
             print(sp.bjd, sp.berv, sp.drsbjd, sp.drsberv, sp.drift, sp.timeid, sp.tmmean, sp.exptime, sp.berv_start, sp.berv_end, file=berv_file)
          infowriter.writerow([sp.timeid, sp.bjd, sp.berv, sp.sn55, sp.obj, sp.exptime, sp.ccf.mask, sp.flag, sp.airmass, sp.ra, sp.de])
       
-   #sys.stdout.logname(obj+'/log.'+obj)
 
    t1 = time.time() - t0
    print(nspec, "spectra read (%s)\n" % minsec(t1))
