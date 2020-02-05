@@ -1,7 +1,7 @@
 from .write_funcs import * 
 import warnings
 import astropy.io.fits as pyfits 
-
+import logging
 
 def write_handler(write_type, filename, **kwargs):
     """
@@ -9,6 +9,9 @@ def write_handler(write_type, filename, **kwargs):
         Either store the template, the res of the fits file;
 
     """
+    module_logger = logging.getLogger("serval.utils.write")
+
+    module_logger.info(f"Writting {write_type} to file")
     mappings = {
         'template': write_template,
         'res': write_res,
