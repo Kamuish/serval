@@ -842,7 +842,8 @@ def serval():
    if lookp: lookp = np.arange(iomax)[lookp]
    if lookssr: lookssr = np.arange(iomax)[lookssr]
 
-   if outfmt or outchi: os.system('mkdir -p '+obj+'/res')
+   if outfmt or outchi: 
+      os.system('mkdir -p '+obj+'/res')
       create_print_file(outdir+'lastcmd.txt', ' '.join(sys.argv))
    with open('cmdhistory.txt', 'a') as f:
       print(' '.join(sys.argv), file=f)
