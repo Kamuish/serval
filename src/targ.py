@@ -2,7 +2,8 @@ import urllib.request, urllib.parse, urllib.error, urllib.request, urllib.error,
 import os
 import sys
 import requests
-
+import logging 
+logger = logging.getLogger(__name__)
 # python version for the shell query
 # star=`sed 's/ /_/g; s/+/%2B/g' <<<$@`
 # echo %Info: encode name: $star >&2
@@ -78,13 +79,13 @@ class Targ:
       '''Restore info from a file.'''
       self.line = None
       if os.path.exists(filename):
-         print("targ.py: restoring '%s' from %s" % (self.name, filename))
+         logger.info("targ.py: restoring '%s' from %s" % (self.name, filename))
          with open(filename) as f:
             self.line = f.read()
       return self.line
 
    def query(self):
-      print("targ.py: requesting simbad for '%s'" % self.name)
+      logger.info("targ.py: requesting simbad for '%s'" % self.name)
       self.line = simbad_query(self.name)
 
    def assignAttr(self, line):
@@ -103,9 +104,9 @@ class Targ:
       if filename:
          with (open(filename, 'w') if filename else sys.stdout) as f:
             print(self.line, file=f)
-         print('storing in', filename)
+         logger.info('storing in', filename)
       else:
-         print(self.line)
+         logger.info(self.line)
 
 
 if __name__ == "__main__":
