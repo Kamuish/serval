@@ -6,7 +6,8 @@ import src.paraboloid as paraboloid
 from src.utils.gplot import *
 from src.utils import pause, stop
 from src.wstat import wsem, wmean
-
+import logging 
+logger = logging.getLogger(__name__)
 
 def SSRstat(vgrid, SSR, dk=1, plot='maybe'):
    '''taken from serval.py and modified with SSRv (chi2 minimum)'''
@@ -23,11 +24,11 @@ def SSRstat(vgrid, SSR, dk=1, plot='maybe'):
    v = vgrid[k] - a[1]/2./a[2]   # parabola minimum
    e_v = np.nan
    if -1 in SSR:
-      print('opti warning: bad ccf.')
+      logger.warning('opti warning: bad ccf.')
    elif a[2] <= 0:
-      print('opti warning: a[2]=%f<=0.' % a[2])
+      logger.warning('opti warning: a[2]=%f<=0.' % a[2])
    elif not vgrid[0] <= v <= vgrid[-1]:
-      print('opti warning: v not in [va,vb].')
+      logger.warning('opti warning: v not in [va,vb].')
    else:
       e_v = 1. / a[2]**0.5
    if (plot==1 and np.isnan(e_v)) or plot==2:
@@ -71,8 +72,6 @@ class Chi2Map:
       V, e_V = wsem(np.array(v),e=np.array(e_v), rescale=0)
       V, e_V = wsem(np.array(v),e=np.array(e_v))
       if 0:
-         print(V, e_V)
-         print(RV, e_RV)
          gplot(rv, e_rv, 'us 0:1:2 w e,', v, e_v,  'us 0:1:2 w e lc 3, %s,%s' % (RV, V))
          gplot(rv, e_rv, 'us 0:1:2 w e,', v, e_v*rchi[1:][orders],  'us 0:1:2 w e lc 3, %s,%s' % (RV, V))
          pause()
@@ -207,8 +206,8 @@ class Chi2Map:
             self.crx = cov.Xc[1] * 1000
             self.e_crx = cov.e_a[1] * 1000
          except Exception as e:
-            print(e)
-            print("warning: mlCRX failed.")
+            logger.error(e)
+            logger.warning("warning: mlCRX failed.")
 
       if 0:
       # scipy optimisation

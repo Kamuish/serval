@@ -6,6 +6,9 @@ import numpy as np
 
 einsum_bug = tuple(map(int, np.__version__.split("."))) < (1, 7, 0)
 # Bugs (due to np.einsum) for moments>1 and dim not () and np._version <= 1.6.1
+
+import logging 
+logger = logging.getLogger(__name__)
 """
       >>> np.__version__
       '1.6.1'
@@ -607,8 +610,8 @@ def mlrms(y, e, s=0., verbose=False, ml=True, ret_mean=False):
       #print(-eps<rr-1<eps , s==0, wwrr, np.sum(w*w*(r**2-e**2)) , np.sum(w*w))
       lnL = -0.5 * np.sum(np.log(2*np.pi/w)) - 0.5 * chi2
 
-      if verbose: print('mean %.5g' %Y,' err', q, ' mlrms', wrms, lnL, ' rchi', chi2/n, rr, ' jit', s, s/wrms, wwrr,W)
-      #if verbose: print('s',s,'wwrr', wwrr, 'r',rr, 'W', W)
+      if verbose: 
+         logger.info('mean %.5g' %Y,' err', q, ' mlrms', wrms, lnL, ' rchi', chi2/n, rr, ' jit', s, s/wrms, wwrr,W)
       if -eps<rr-1<eps or s==0 or i>20:
          if ret_mean:
             return wrms, s, Y

@@ -1,3 +1,5 @@
+import logging 
+logger ? logging.getLogger(__name__)
 def sun(YYYY, MM, DD, lon=-74.3, lat=40.9, zenith='nautical', rise=True):
    '''
    Sunrise/Sunset Algorithm
@@ -83,10 +85,10 @@ def sun(YYYY, MM, DD, lon=-74.3, lat=40.9, zenith='nautical', rise=True):
    cosH = (cos(zenith) - sinDec*sin(lat)) / (cosDec*cos(lat))
 
    if cosH > 1:
-      print('the sun never rises on this location (on the specified date)')
+      logger.warning('the sun never rises on this location (on the specified date)')
       return None
    elif cosH < -1:
-      print('the sun never sets on this location (on the specified date)')
+      logger.warning('the sun never sets on this location (on the specified date)')
       return None
 
    # 7b. finish calculating H and convert into hours

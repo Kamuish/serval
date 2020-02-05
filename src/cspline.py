@@ -13,6 +13,8 @@ try:
    from ds9 import ds9
 except:
    pass
+import logging 
+logger = logging.getLogger(__name__)
 
 from ctypes import c_int, c_long, c_double
 
@@ -554,7 +556,7 @@ def ucbspl_fit(x, y=None, w=None, K=10, xmin=None, xmax=None, lam=0., pord=2, mu
 
       if lam:
          # Add penalty lam*DTD
-         print(lam)
+         logger.info(lam)
          if pord == 0:
             # diagonal
             BTBbnd[0] += lam
@@ -738,8 +740,6 @@ def bspline1(x, K, D=3):
    for d in range(1, D+1):
 #      B = p[:-d]*B[:-1]/d + (d+1-p[:-d])/d*B[1:]         # Bkd
       B = (p[:-d]*B[:-1] - (p[d:]-1)*B[1:])/d         # Bkd
-      print(B)
-   print(list(zip(k,B)))
    return B
 
 def bspline2(x,K,D=3):
@@ -841,30 +841,6 @@ def cBspline(x,k):
 
 
 
-def example():
-   # a noisy time serie
-   x = np.arange(10490)/40.0 + 0.1
-   yorg = np.sin(x*1.65) + 0.1*np.sin(x*1.65*6.32)
-   y = yorg + 0.021*np.random.randn(x.size)
-
-   mod, yfit = ucbspl_fit(x, y, w=1+0*y, K=1800, lam=0.11, retfit=True)
-
-   gplot(x, y, yorg, ' lt 2,"" us 1:3 w l  lt 1 t "org"')
-   ogplot(x, yfit, yfit-yorg,'w l,"" us 1:3')
-
-
-   A = np.array([
-    [20, -5,  0,  0],
-    [-5, 15, -5,  0],
-    [ 0, -5, 15, -5],
-    [ 0,  0, -5, 10]
-   ])
-   D = np.array([1100, 100, 100, 100])
-   print("SciPy - Solve Banded")
-   print("A:", A)
-   print("D:", D)
-   print("Result:", SolveBanded(A, D))
-   pause()
 
 if __name__ == "__main__":
    #pause()
@@ -881,7 +857,6 @@ if __name__ == "__main__":
    Bspline(t,0,1)
 
    pause()
-   example()
 
 
 '''

@@ -19,7 +19,10 @@ import numpy as np
 from src.utils import pause, stop
 import src.brv_we14py as brv_we14py
 import src.sunrise as sunrise
-from src.utils import FitsClass
+from src.utils import FitsClass 
+
+import logging 
+logger = logging.getLogger(__name__)
 class nameddict(dict):
    """
    Examples
@@ -129,7 +132,7 @@ class Spectrum:
       self.scan(self, filename, pfits=pfits)
 
       if verb:
-         print("scan %s:"%self.instname, self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
+         logger.info("scan %s:"%self.instname, self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
 
       if inst.name != self.instname:
          pause('WARNING:', filename, 'from', self.inst, ', but mode is', inst)
@@ -287,7 +290,6 @@ def file_from_tar(s, inst='HARPS', fib=None, **kwargs):
       # does not work with np.fromfile
       s = tar.extractfile(extr)
    else:
-      print('extract')
       tar.extract(extr, path='tarfits')   # extract physically
       s = 'tarfits/'+extr.name
    #tar.close()
