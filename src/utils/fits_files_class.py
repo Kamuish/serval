@@ -1,25 +1,60 @@
 
+import tarfile
+from astropy.io import fits 
+
 
 class FitsClass():
-    def __init__(self, filepath, name, offset_data, size):
-        self.file_path = filepath 
-        self.open_file = open(filepath, mode = 'rb')
+    def __init__(self, filepath, name, offset_data=0, size=0, mode = 1, **kwargs):
+        """
+            mode:
+                1 -> going through the file manually 
+                2 -> tarfile stored inside
+
+        """
+        try:
+            self.file_path = [filepath, kwargs['tar_file']]
+        except:
+            self.file_path = filepath
+        self.open_file = None
 
         self.name = name 
 
         self.offset_data = offset_data 
+
         self.size = size 
 
+        self.mode = mode
 
+    def __enter__(self):
+        if self.open_file is not None:
+            return self.open_file
+
+        if self.mode == 1:
+            print("Serving mode 1 output")
+            self.open_file = open(self.file_path, mode = 'rb')
+        elif self.mode == 2:
+            print("Serving mode 2 output")
+            self.open_file = fits.open(self.file_path[0])
+        return self.open_file 
+
+    def __exit__(self, type, value, traceback):
+        if self.mode != 2:   
+            self.open_file.close()
+            self.open_file = None        
     def __del__(self):
         """
             Makes sure that the file is closed
         """
-        self.open_file.close()
-
+        if self.open_file is not None and self.mode != 2:
+            self.open_file.close()
+        if self.mode == 2:
+            print("Closing down the tar file open in memory")
+            self.file_path[0].close()
+            self.file_path[1].close()
     def seek(self, seek_pos, whence = 0):
         self.open_file.seek(int(seek_pos), whence)
 
+   
     @property 
     def file(self):
         return self.open_file
