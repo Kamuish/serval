@@ -49,6 +49,7 @@ from .chi2map import Chi2Map
 import astropy.io.fits as pyfits
 
 from .utils import create_print_file, build_parser, arg2slice, pause, stop
+from .utils import read_handler
 from .utils.consts import *
 from src.utils.gplot import *
 
@@ -984,7 +985,8 @@ def serval():
          splist.append(sp)
          sp.sa = targ.sa / 365.25 * (sp.bjd-splist[0].bjd)
          sp.header = None   # saves memory(?), but needs re-read (?)
-         if inst.name == 'HARPS' and drs: sp.ccf = read_harps_ccf(filename)
+         if inst.name == 'HARPS' and drs: 
+            sp.ccf = read_handler('harps_ccf', filename)
          if sp.sn55 < snmin or np.isnan(sp.sn55): sp.flag |= sflag.lowSN
          if sp.sn55 > snmax or np.isnan(sp.sn55): sp.flag |= sflag.hiSN
          if distmax and sp.ra and sp.de:
@@ -1116,7 +1118,7 @@ def serval():
             elif tpl.endswith('template.fits') or os.path.isdir(tpl):
                # last option
                # read a spectrum stored order wise
-               ww, ff, head = read_template(tpl+(os.sep+'template.fits' if os.path.isdir(tpl) else ''))
+               ww, ff, head = read_handler('template', tpl+(os.sep+'template.fits' if os.path.isdir(tpl) else ''))
                TPL = [Tpl(wo, fo, spline_cv, spline_ev) for wo,fo in zip(ww,ff)]
                if 'HIERARCH SERVAL COADD NUM' in head:
                   print('HIERARCH SERVAL COADD NUM:', head['HIERARCH SERVAL COADD NUM'])
