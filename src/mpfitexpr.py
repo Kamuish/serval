@@ -15,12 +15,12 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import mpfit 
+import src.mpfit as mpfit 
 import re
 import numpy
 import scipy
 
-import calcspec
+import src.calcspec as calcspec
 
 
 def mpfitexpr(func, x, y, err , start_params, check=True, full_output=False, **kw):
