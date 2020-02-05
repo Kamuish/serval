@@ -477,67 +477,6 @@ def read_feros(self, s, orders=None, pfits=True, verb=True):
       return w, f, e, bpmap
    hdulist.close()
 
-def read_fts(self,s, orders=None, filename=None, pfits=True, verb=True):
-   """
-   SYNTAX: read_fts(filename)
-   OUTPUT: namedtuple('spectrum', 'w f berv bjd blaze drift timeid sn55 ')
-           w    - wavelength
-           f    - flux
-           berv - Barycentric Earth Radial Velocity
-           bjd  - Barycentric Julian Day
-           blaze - Blaze filename
-           drift - Used RV Drift
-           sn55  - S_N order center55
-
-   """
-   HIERARCH = 'HIERARCH '
-   if orders is None:
-      hdr = {'OBJECT': 'Iod'}
-      self.header = hdr
-      self.inst = 'FTS'
-      self.drsberv = hdr.get('bla', 0)
-      self.fileid = os.path.basename(s) #fileid[fileid.index('(')+1:fileid.index(')')]
-      self.drsbjd = 0.0 if '.fits' in s else float(self.fileid.split('.')[1].split('_')[0])
-      with open('/home/data1/fts/Lemke/2015_I/2015-01-29/DPT/parameter_Q_Si_I2_001.txt') as finfo:
-         for line in finfo:
-            if self.fileid.replace('_ScSm.txt','\t') in line:
-               line = line.split(); date=line[2].split('/'); time=line[3].split(':')
-               #from subprocess import call
-               #call(['bash','date2jd', date[2], date[1], date[0]] +time)
-               from subprocess import Popen, PIPE
-               p = Popen(['bash','date2jd', date[2], date[1], date[0]] +time, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-               output, err = p.communicate()
-               rc = p.returncode
-               self.drsbjd = float(output)
-      self.sn55 = 10
-      self.blaze = '' #hdr[HIERARCH+'ESO DRS BLAZE FILE']
-      self.drift = hdr.get(HIERARCH+'ESO DRS DRIFT RV USED', np.nan)
-      self.calmode = hdr.get('SOURCE', 0) #.split("_")[3] #fileid[fileid.index('(')+1:fileid.index(')')]
-      self.timeid = self.fileid
-      self.exptime = 0
-   if verb: print("read_fts:", self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
-
-   if orders is not None:  # read order data
-      nord = 70    # some arbitary shaping to 70x10000
-      nw = 700000
-      if '.fits' in s:
-         hdulist = pyfits.open(s)
-         w, f = hdulist[0].data[:,1600000:]
-      else:
-         #w, f = np.loadtxt(s, skiprows=1600000, unpack=True) ; too slow 45s vs 5.2s
-         data = np.fromfile(s, sep=' ', count=2*(1600000+nw))[2*1600000:]
-         w = 1e7 / data[::2]
-         f = data[1::2]
-
-      w = 10 * w[:nw].reshape(nord,nw/nord)
-      f = f[:nw].reshape(nord,nw/nord)*4000
-      bpmap = np.isnan(f).astype(int)            # flag 1 for nan
-
-      xmax = w.size
-      e = np.ones_like(w)
-      return w, f, e, bpmap
-
-
 tarmode = 5   # FIXME: temporary chaging the TARMODE
 # 0  - extract physically (works for all, slow)
 #      tarfits directory not cleaned
