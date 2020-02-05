@@ -16,7 +16,7 @@ import astropy.io.fits as pyfits
 #import fitsio
 import numpy as np
 
-from src.utils import pause, stop, FitsClass
+from src.utils import pause, stop
 import src.brv_we14py as brv_we14py
 import src.sunrise as sunrise
 from src.utils import FitsClass
