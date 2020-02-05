@@ -681,7 +681,6 @@ def fitspec(tpl, w, f, e_f=None, v=0, vfix=False, clip=None, nclip=1, keep=None,
 
 def serval():
 
-   #sys.stdout = Logger()
 
    global v_lo,v_hi,v_step, obj, targ, oset, coadd, coset, last, tpl, sp, fmod, reana, inst, fib, look, looki, lookt, lookp, lookssr, pmin, pmax, debug, pspllam, kapsig, nclip, atmfile, skyfile, atmwgt, omin, omax, ptmin, ptmax, driftref, deg, targrv, tplrv
    v_lo, v_hi, v_step = -5.5, 5.6, 0.1
