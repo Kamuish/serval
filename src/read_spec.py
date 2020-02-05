@@ -1,5 +1,3 @@
-#         w, f, e, b = read_spec(self, self.filename, inst=self.inst, orders=orders, **kwargs)
-#         w, f, e, b = read_spec(self, self.filename, inst=self.inst, orders=orders, **kwargs)
 #! /usr/bin/env python
 __author__ = 'Mathias Zechmeister'
 __version__ = '2019-03-01'
@@ -128,7 +126,6 @@ class Spectrum:
       self.ccf = type('ccf',(), dict(rvc=np.nan, err_rvc=np.nan, bis=np.nan, fwhm=np.nan, contrast=np.nan, mask=0, header=0))
 
       # scan fits header for times, modes, snr, etc.
-      #read_spec(self, filename, inst=inst, pfits=pfits, verb=verb)
       self.scan(self, filename, pfits=pfits)
 
       if verb:
@@ -237,67 +234,6 @@ class Spectrum:
 class Inst:
    def __init__(self, inst):
       pass
-
-def read_spec(self, file_name, inst, plot=False, **kwargs):
-   # FIXME: why the return before all of the code? Possible fixed the loading of data and forgot to remove?
-   #print s, inst
-   sp = inst.read(self, file_name, **kwargs)
-   return sp
-
-def read_template(filename):
-   hdu = pyfits.open(filename)
-   #return hdu[1].data, hdu[0].data  # wave, flux
-   return hdu[2].data, hdu[1].data, hdu[0].header  # wave, flux
-
-def read_harps_ccf(path_to_file):
-   ccf = namedtuple('ccf', 'rvc err_rvc bis fwhm contrast mask')
-   tar = None
-   if ".tar" in path_to_file:
-      tar = tarfile.open(path_to_file)
-      extr = None
-      for member in tar.getmembers():
-         if 'A.fits' in member.name:
-            if '_ccf_' in member.name and not extr: 
-               extr = member
-               print(1)
-            if '_bis_' in member.name: 
-               extr = member   # prefer bis 
-
-      if not extr: 
-         return ccf(0,0,0,0,0,0)
-      s = FitsClass(path_to_file, extr.name, extr.offset_data, extr.size)
-   else:
-      s = glob.glob(s.replace("_e2ds","_bis_*")) + glob.glob(s.replace("_e2ds","_ccf_*"))
-      if s: s = s[0]   # prefer bis
-      else: 
-         return ccf(*[np.nan]*6)
-   HIERARCH = 'HIERARCH '
-
-   if 1:
-      hdr = imhead(s, HIERARCH+'ESO DRS CCF RVC', HIERARCH+'ESO DRS CCF CONTRAST', HIERARCH+'ESO DRS CCF FWHM', HIERARCH+'ESO DRS CCF MASK', HIERARCH+'ESO DRS DVRMS',HIERARCH+'ESO DRS BIS SPAN')
-   elif 0:
-      if ".tar" in s:
-         s = tar.extractfile(extr)
-         hdulist = pyfits.open(s)
-         hdr = hdulist[0].header
-         tar.close()
-         #hdr = pyfits.getheader(s) # doesn't work for file like object?
-   else:
-      tar.extract(extr, path='tarfits')
-      os.system('mv tarfits/* tmp.fits ')
-      data,hdr = fitsio.read('tmp.fits',header=1)
-      HIERARCH = ''
-
-   if tar:
-      tar.close()
-
-   rvc = hdr[HIERARCH+'ESO DRS CCF RVC']   # [km/s]
-   contrast = hdr.get(HIERARCH+'ESO DRS CCF CONTRAST', np.nan)
-   fwhm = hdr[HIERARCH+'ESO DRS CCF FWHM']
-   mask = hdr[HIERARCH+'ESO DRS CCF MASK']
-   e_rvc = hdr.get(HIERARCH+'ESO DRS DVRMS', np.nan) / 1000.   # [km/s]
-   bis = hdr.get(HIERARCH+'ESO DRS BIS SPAN', np.nan)
-   return ccf(rvc, e_rvc, bis, fwhm, contrast, mask)
 
 tarmode = 5   # FIXME: temporary chaging the TARMODE
 # 0  - extract physically (works for all, slow)
@@ -628,16 +564,6 @@ def airtovac(wave_air):
 
 
 if __name__ == "__main__":
-   if not 'debug' in sys.argv:
-      x=Spectrum(*sys.argv[1:], inst='HARPS', pfits=2)
-      x.read_data()
-   else:
-      sys.argv.remove('debug')
-      try:
-         read_spec(*sys.argv[1:])
-      except:
-         import pdb, sys
-         e, m, tb = sys.exc_info()
-         pdb.post_mortem(tb)
+   pass
 
 
