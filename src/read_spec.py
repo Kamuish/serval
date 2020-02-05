@@ -124,7 +124,8 @@ class Spectrum:
       self.scan = self.inst.scan
       self.data = self.inst.data
 
-      if '.gz' in filename: pfits=True
+      if '.gz' in filename: 
+         pfits=True
 
       self.ccf = type('ccf',(), dict(rvc=np.nan, err_rvc=np.nan, bis=np.nan, fwhm=np.nan, contrast=np.nan, mask=0, header=0))
 
@@ -187,10 +188,7 @@ class Spectrum:
       self.header['HIERARCH SERVAL BREF'] = (self.brvref, 'Barycentric code')
       self.header['HIERARCH SERVAL BJD'] = (self.bjd, 'Barycentric Julian Day')
       self.header['HIERARCH SERVAL BERV'] = (self.berv, '[km/s] Barycentric correction')
-      #self.header['HIERARCH SERVAL RA'] = (targ.ra[0], 'Barycentric code')
-      #self.header['HIERARCH SERVAL DE'] = (targ.ra[0], 'Barycentric code')
-      #self.header['HIERARCH SERVAL PMRA'] = (targ.ra[0], 'Barycentric code')
-      #self.header['HIERARCH SERVAL PMDE'] = (targ.ra[0], 'Barycentric code')
+
 
       if self.utc:
          date = self.utc.year, self.utc.month, self.utc.day
@@ -248,7 +246,7 @@ tarmode = 5   # FIXME: temporary chaging the TARMODE
 # 5  - use tar.extractfile, works with pyfits, doesn't work with myfits (np.fromfile accepts only real files and files object, not tar)
 # 6  - open as normal file, does not work
 
-def file_from_tar(s, inst='HARPS', fib=None, **kwargs):
+def file_from_tar(file_name, inst='HARPS', fib=None, **kwargs):
    """
    Returns a file-like object.
    Reading header and data should use the same fits reader
@@ -260,8 +258,9 @@ def file_from_tar(s, inst='HARPS', fib=None, **kwargs):
    """
    pat = {'HARPS': {'A': '_e2ds_A.fits', 'B': '_e2ds_B.fits'}[fib],
           'FEROS': {'A': '.1061.fits', 'B': '.1062.fits'}[fib]} [inst]
-   tar = tarfile.open(s)
 
+   keep_open = False
+   tar =  tarfile.open(file_name)
    for member in tar.getmembers():
       if pat in member.name: 
          extr = member
@@ -277,22 +276,28 @@ def file_from_tar(s, inst='HARPS', fib=None, **kwargs):
       # Open the tar file as a normal file and store the position and size of the fits file
       # as attributes.
 
-      
-      s = FitsClass(filepath = s, 
-                    offset_data = extr.offset_data,
-                    name = extr.name,
-                    size=extr.size
+      print("here, right ?")
+      s = FitsClass(filepath = file_name, 
+                  offset_data = extr.offset_data,
+                  name = extr.name,
+                  size=extr.size,
+                  mode = 1
       )
-      # actually creating those n   ew properties
+      # actually creating those new properties
 
-      tar.close()
    elif tarmode == 5:
       # does not work with np.fromfile
-      s = tar.extractfile(extr)
+      print("TAR MODE 5 from read_spec")
+      extracted_member  = tar.extractfile(extr)
+      s = FitsClass( filepath = extracted_member, name = extr.name, mode = 2, **{'tar_file': tar})
+      keep_open = True
    else:
       tar.extract(extr, path='tarfits')   # extract physically
       s = 'tarfits/'+extr.name
-   #tar.close()
+   
+   if not keep_open:
+      print("closing tar from read_spec: ", file_name)
+      tar.close()
    return s
 
 
@@ -347,30 +352,34 @@ class imhead(dict):
       #pause()
 
       #with open(s) as fi:
-      fi.seek(extpos)
+      
       if isinstance(fi, FitsClass):  # FIXME: temporary solution to this problem; do the other file types work properly? 
 
-         file = fi.file 
          args = tuple((str.encode(i) for i in args))
+         with fi as file:
+            file.seek(extpos)
+            for card in iter(lambda:file.read(80), ''):   # read in 80 byte blocks 
+               # Header files have the header with 80 bytes blocks -> this reads the header line by line
+               NR += 1
+               if card.startswith(b'END'): 
+                  break
+               if card.startswith(args):
+                  #key, val, comment = card.replace("= ","/ ",1).split("/ ")
+                  key, val, comment = card.replace(b' /',b'= ',1).split(b'= ')   # does not parse HARPN.2012-09-03T05-29-56.622 "HIERARCH TNG OBS TARG NAME = 'M1'/ no comment"
+                  # key, val, comment = card.replace('/','= ',1).split('= ')
+                  hdr[key.strip().decode('utf-8')] = val.strip(b"' ").decode('utf-8') if b"'" in val else float(val) if b'.' in val else int(val)
+                  #hdr[key.strip()] = val.strip("' ") if any(i in val for i in "'TF") else float(val) if '.' in val and not 'NaN.' in val else int(val) if val.strip(" -").isdigit() else val
+                  self.comments[key.strip().decode('utf-8')] = comment.decode('utf-8')
+                  count -= 1
+                  if count==0: 
+                     args = () # all found; do not check cards anymore; only read to end
+               
+            
       else:
-         file = fi
+         logger.fatal("I should implement this")
+         raise NotImplementedError
 
-      for card in iter(lambda:file.read(80), ''):   # read in 80 byte blocks 
-         # Header files have the header with 80 bytes blocks -> this reads the header line by line
-         NR += 1
-         if card.startswith(b'END'): 
-            break
-         if card.startswith(args):
-            #key, val, comment = card.replace("= ","/ ",1).split("/ ")
-            key, val, comment = card.replace(b' /',b'= ',1).split(b'= ')   # does not parse HARPN.2012-09-03T05-29-56.622 "HIERARCH TNG OBS TARG NAME = 'M1'/ no comment"
-            # key, val, comment = card.replace('/','= ',1).split('= ')
-            hdr[key.strip().decode('utf-8')] = val.strip(b"' ").decode('utf-8') if b"'" in val else float(val) if b'.' in val else int(val)
-            #hdr[key.strip()] = val.strip("' ") if any(i in val for i in "'TF") else float(val) if '.' in val and not 'NaN.' in val else int(val) if val.strip(" -").isdigit() else val
-            self.comments[key.strip().decode('utf-8')] = comment.decode('utf-8')
-            count -= 1
-            if count==0: 
-               args = () # all found; do not check cards anymore; only read to end
-         
+      
       hsz = 2880 * ((NR-1)//36 + 1)
 
       dsz = 0     # EXTDATSZ
@@ -447,19 +456,16 @@ class getext(dict):
       if isinstance(self.fileobj, (tarfile.ExFileObject, FitsClass)):
          funit = self.fileobj
       else:
-         funit = open(self.fileobj)
-         was_open = False
+         funit = self.fileobj
+         print(self.fileobj, type(self.fileobj))
 
-      if 1:
+      with self.fileobj as funit:
          if order == np.s_[:]: # read all
             funit.seek(ext.EXTDATA)
-            data = np.fromfile(funit.open_file, dtype=dtype, count=ext.NAXIS1*ext.NAXIS2).reshape((ext.NAXIS2,ext.NAXIS1))
+            data = np.fromfile(funit, dtype=dtype, count=ext.NAXIS1*ext.NAXIS2).reshape((ext.NAXIS2,ext.NAXIS1))
          else:
             funit.seek(ext.EXTDATA+order*ext.NAXIS1*dsize)
-            data = np.fromfile(funit.open_file, dtype=dtype, count=ext.NAXIS1)
-
-      if not was_open:
-         funit.close()
+            data = np.fromfile(funit, dtype=dtype, count=ext.NAXIS1)
       return data
 
 
