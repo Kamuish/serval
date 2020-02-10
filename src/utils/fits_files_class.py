@@ -30,36 +30,33 @@ class FitsClass():
             return self.open_file
 
         if self.mode == 1:
-            print("Serving mode 1 output")
             self.open_file = open(self.file_path, mode = 'rb')
         elif self.mode == 2:
-            print("Serving mode 2 output")
             self.open_file = fits.open(self.file_path[0])
         return self.open_file 
 
     def __exit__(self, type, value, traceback):
         if self.mode != 2:   
             self.open_file.close()
-            self.open_file = None        
+            self.open_file = None       
+
+
     def __del__(self):
         """
             Makes sure that the file is closed
         """
         if self.open_file is not None and self.mode != 2:
-            self.open_file.close()
+            self.file_path.close()
         if self.mode == 2:
             print("Closing down the tar file open in memory")
             self.file_path[0].close()
             self.file_path[1].close()
+
     def seek(self, seek_pos, whence = 0):
         self.open_file.seek(int(seek_pos), whence)
 
    
-    @property 
-    def file(self):
-        return self.open_file
-
-
+    
 if __name__ == '__main__':
     import tarfile 
     s = '/home/amiguel/SERVALHOME/serval/data/HARPS/gj699/ADP.2014-09-17T11-23-26.740.tar'
@@ -81,3 +78,4 @@ if __name__ == '__main__':
         if card.startswith(args):
             print('yes')
 
+    tar.close()
