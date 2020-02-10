@@ -1,5 +1,13 @@
 from src import builder
 
+import os
+import glob
+
+files = glob.glob('gj699/*')
+
+
+for f in files:
+    os.remove(f)
 
 builder()
 
