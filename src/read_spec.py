@@ -133,7 +133,7 @@ class Spectrum:
       self.scan(self, filename, pfits=pfits)
 
       if verb:
-         logger.info("scan %s:"%self.instname, self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
+         logger.info("scan %s:" %self.instname + ' '.join([str(i) for i in [self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode]]))
 
       if inst.name != self.instname:
          pause('WARNING:', filename, 'from', self.inst, ', but mode is', inst)
