@@ -4,7 +4,7 @@ def setup_logger():
     logger = logging.getLogger('serval')
     logger.setLevel(logging.DEBUG)
     # create file handler which logs even debug messages
-    fh = logging.FileHandler('serval.log',mode='a')
+    fh = logging.FileHandler('serval.log',mode='w')
     fh.setLevel(logging.DEBUG)
     # create console handler with a higher log level
     ch = logging.StreamHandler()
