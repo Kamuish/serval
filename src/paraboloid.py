@@ -595,23 +595,23 @@ if __name__=='__main__':
       cm = covmat_fit(list(zip(ai,bi)), chi2map)
 
       # best fit parameters
-      logger.info(('polyfit    a, b', a_pf, b_pf))
-      logger.info(('paraboloid a, b', cm.Xc))
+      logger.info(('polyfit    a, b {} {}'.format(a_pf, b_pf)))
+      logger.info(('paraboloid a, b {}'.format(cm.Xc)))
 
       lhs = np.array([1/e_y, x/e_y]).T
       cov_ls = np.linalg.inv(np.dot(lhs.T, lhs))
 
-      logger.info(('paraboloid cov\n', cm.Va))
-      logger.info(('linreg cov\n', cov_ls))
+      logger.info(('paraboloid cov: {}'.format(cm.Va)))
+      logger.info(('linreg cov {}'.format(cov_ls)))
 
       # with scaling
       scale = np.sqrt((lhs*lhs).sum(axis=0))
       cov_lss = np.linalg.inv(np.dot((lhs/scale).T, lhs/scale)) / np.outer(scale, scale)
-      logger.info(('linreg cov + scale\n', cov_lss))
+      logger.info(('linreg cov + scale {}'.format(cov_lss)))
 
       # polyfit with fac = chi2min/DOF where DOF = N-order-2 (!), order = deg + 1
-      logger.info(('linreg cov + scale + DOF\n', cm.min/(len(x)-2-2.) * cov_lss))
-      logger.info(('polyfit cov\n', np.flipud(np.fliplr(cov))))
+      logger.info(('linreg cov + scale + DOF {}'.format(cm.min/(len(x)-2-2.) * cov_lss)))
+      logger.info(('polyfit cov {}'.format( np.flipud(np.fliplr(cov)))))
 
       # gplot.splot(ai, bi, chi2map)
       pause()
