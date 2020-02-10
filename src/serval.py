@@ -2075,7 +2075,7 @@ def serval():
 
       create_line = lambda initial: outdir + obj + initial + fibsuf + '.dat'
       rvfile = create_line('')
-      rvcfile = create_line('.rcv')
+      rvcfile = create_line('.rvc')
       crxfile = create_line('.crx')
       mlcfile = create_line('.mlc') # maximum likehood estimated RVCs and CRX
       srvfile = create_line('.srv')# serval top-level file
