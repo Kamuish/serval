@@ -15,7 +15,6 @@ except:
    pass
 import logging 
 logger = logging.getLogger(__name__)
-
 from ctypes import c_int, c_long, c_double
 
 ptr_double = np.ctypeslib.ndpointer(dtype=np.float)
@@ -498,9 +497,10 @@ def ucbspl_fit(x, y=None, w=None, K=10, xmin=None, xmax=None, lam=0., pord=2, mu
    else:
       wy = w * y
    wy = np.ascontiguousarray(wy)
-
-   if xmin is None: xmin = x.min()
-   if xmax is None: xmax = x.max()
+   if xmin is None: 
+      xmin = x.min()
+   if xmax is None: 
+      xmax = x.max()
 
    G, kk = [cbspline_Bk, _cbspline_Bk][c](x, K, xmin, xmax)
 
