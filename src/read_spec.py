@@ -276,7 +276,6 @@ def file_from_tar(file_name, inst='HARPS', fib=None, **kwargs):
       # Open the tar file as a normal file and store the position and size of the fits file
       # as attributes.
 
-      print("here, right ?")
       s = FitsClass(filepath = file_name, 
                   offset_data = extr.offset_data,
                   name = extr.name,
@@ -287,7 +286,6 @@ def file_from_tar(file_name, inst='HARPS', fib=None, **kwargs):
 
    elif tarmode == 5:
       # does not work with np.fromfile
-      print("TAR MODE 5 from read_spec")
       extracted_member  = tar.extractfile(extr)
       s = FitsClass( filepath = extracted_member, name = extr.name, mode = 2, **{'tar_file': tar})
       keep_open = True
@@ -296,7 +294,6 @@ def file_from_tar(file_name, inst='HARPS', fib=None, **kwargs):
       s = 'tarfits/'+extr.name
    
    if not keep_open:
-      print("closing tar from read_spec: ", file_name)
       tar.close()
    return s
 
@@ -334,7 +331,6 @@ class imhead(dict):
          #stop( '\n\nimhead: there must be are args; reading all keys not yet supported\n')
       args += ('NAXIS', 'BITPIX')
       NR = 0
-
       if isinstance(s, (tarfile.TarInfo, tarfile.ExFileObject)):
          if tarmode==1:
             fi = open(s.mother)
@@ -351,7 +347,6 @@ class imhead(dict):
          extpos = s.offset_data
       #pause()
 
-      #with open(s) as fi:
       
       if isinstance(fi, FitsClass):  # FIXME: temporary solution to this problem; do the other file types work properly? 
 
@@ -504,7 +499,9 @@ def bary(obj,bjd, exptime):
    #pause(exptime)
    p = Popen(['./src/bary/eph'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
    eph = p.communicate(input="\n".join(s)+"\n")[0]
-   if  'Star not in starlist' in eph: stop(obj, 'Star not in starlist')
+   if  'Star not in starlist' in eph: 
+      logger.error("Star not starList")
+      stop(obj, 'Star not in starlist')
    berv = float(eph.split("\n")[-3].lstrip(" DELTAV=").rstrip("m/s"))
    return berv
 
