@@ -1004,7 +1004,7 @@ def serval():
    snrmedian = np.median([sp.sn55 for sp in spoklist])
    with open(outdir+obj+'.drs.dat', 'w') as myunit:
       for sp in spoklist:
-          logger.info(sp.bjd, sp.ccf.rvc*1000., sp.ccf.err_rvc*1000., sp.ccf.fwhm, sp.ccf.bis, sp.ccf.contrast, sp.timeid, file=myunit)  #, sp.hdr['HIERARCH ESO OBS PROG ID'], sp.hdr['HIERARCH ESO OBS PI-COI NAME']
+          print(sp.bjd, sp.ccf.rvc*1000., sp.ccf.err_rvc*1000., sp.ccf.fwhm, sp.ccf.bis, sp.ccf.contrast, sp.timeid, file=myunit)  #, sp.hdr['HIERARCH ESO OBS PROG ID'], sp.hdr['HIERARCH ESO OBS PI-COI NAME']
 
    ################################
    ### Template canditates ########
@@ -1233,11 +1233,11 @@ def serval():
          spt.header['HIERARCH SERVAL PSPLLAM'] = (pspllam, 'smoothing value of the psline')
          spt.header['HIERARCH SERVAL UTC'] = (datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"), 'time of coadding')
          for o in corders:
-            logger.info("coadding o %02i:" % o, end=' ')     # continued below in iteration loop
+            print("coadding o %02i:" % o, end=' ')     # continued below in iteration loop
             for n,sp in enumerate(spoklist[tset]):
-             '''get the polynomials'''
-             if not sp.flag:
-               sp = sp.get_data(pfits=2, orders=o)
+               '''get the polynomials'''
+               if not sp.flag:
+                  sp = sp.get_data(pfits=2, orders=o)
                if atmspec:
                   ft = atmmod(sp.w)
                   sp.f = sp.f / ft
@@ -1306,7 +1306,8 @@ def serval():
                   #gplot(sp.w,sp.f,poly, ',"" us 1:3,', sp.w[i0:ie],(sp.f / poly)[i0:ie], ' w l,',ww[o], ff[o], 'w l')
                   gplot(w2,sp.f,poly, ',"" us 1:3,', w2[i0:ie],(sp.f / poly)[i0:ie], ' w l,',ww[o], ff[o], 'w l')
                   pause(n)
-              #(fmod<0) * flag.neg
+               #(fmod<0) * flag.neg
+            
             ind = (bmod&(flag.nan+flag.neg+flag.out)) == 0 # not valid
             tellind = (bmod&(flag.atm+flag.sky)) > 0                  # valid but down weighted
             #emod[tellind] *= 1000
@@ -1350,6 +1351,7 @@ def serval():
                   # deviation of mu should be as large or larger than mu
                   e_mu = pe_mu * mu  # 5 *mu
 
+               print('ucbspl_fit:', ind)
                smod, ymod = spl.ucbspl_fit(wmod[ind], mod[ind], we[ind], K=nk, lam=pspllam, mu=mu, e_mu=e_mu, e_yk=True, retfit=True)
 
                #yfit = ww[o]* 0 # np.nan
@@ -1405,7 +1407,7 @@ def serval():
                if ckappa[1]: okmap *= res < ckappa[1]*sig
                okmap[tellind[ind]] = True # Oh my god. Do not reject the tellurics based on emod. That likely gives gaps and then nans.
 
-               logger.info("%.5f (%d)" % (np.median(sig), np.sum(~okmap)), end=' ')
+               print("%.5f (%d)" % (np.median(sig), np.sum(~okmap)), end=' ')
                #gplot(wmod[ind], res,',', wmod[ind][tellind[ind]], res[tellind[ind]])
                #pause()
                if it < n_iter: ind[ind] *=  okmap
@@ -1423,7 +1425,7 @@ def serval():
 
                Ko = K[np.argmin(BIC)]
                smod, ymod = spl.ucbspl_fit(wmod[ind], mod[ind], we[ind], K=Ko, lam=pspllam, mu=mu, e_mu=e_mu, e_yk=True, retfit=True)
-               logger.info("K=%d" % Ko, end=' ')
+               print("K=%d" % Ko, end=' ')
 
                if 0:
                   gplot2(K, BIC, 'w lp,', Ko, min(BIC), 'lc 3 pt 7')
