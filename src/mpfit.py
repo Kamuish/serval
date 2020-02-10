@@ -1408,7 +1408,7 @@ class mpfit:
 
 	# Default procedure to be called every iteration.  It simply prints
 	# the parameter values.
-	def defiter(self, fcn, x, iter, fnorm=None, functkw=None,
+			def defiter(self, fcn, x, iteration, fnorm=None, functkw=None,
 					   quiet=0, iterstop=None, parinfo=None,
 					   format=None, pformat='%.10g', dof=1):
 
@@ -1419,10 +1419,10 @@ class mpfit:
 		if fnorm is None:
 			[status, fvec] = self.call(fcn, x, functkw)
 			fnorm = self.enorm(fvec)**2
-
+		# FIXME: stop using iter as a variable
 		# Determine which parameters to print
 		nprint = len(x)
-		logger.info("Iter ", ('%6i' % iter),"   CHI-SQUARE = ",('%.10g' % fnorm)," DOF = ", ('%i' % dof))
+		logger.info("Iter {}".format( iteration) + "   CHI-SQUARE = {} DOF = {}".format(fnorm, dof))
 		for i in range(nprint):
 			if (parinfo is not None) and ('parname' in parinfo[i]):
 				p = '   ' + parinfo[i]['parname'] + ' = '
