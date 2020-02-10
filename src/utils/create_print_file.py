@@ -1,7 +1,7 @@
 
 
 def create_print_file(filename, *args):
-    with open(filename, mode = 'w') as file:
+    with open(filename, mode = 'a') as file:
         print(*args, file = file)
 
 
