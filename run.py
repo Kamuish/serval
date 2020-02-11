@@ -1,10 +1,18 @@
 from src import builder
+from src import main
 
-import os
+import os, sys
 import glob
 
-files = glob.glob('gj699/*')
 
+plot = 1
+
+if plot:
+    main()
+    sys.exit(0)
+
+
+files = glob.glob('gj699/*')
 
 for f in files:
     os.remove(f)

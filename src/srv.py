@@ -14,7 +14,7 @@ except:
 
 import astropy.io.fits as pyfits
 
-import chi2map
+import src.chi2map as chi2map
 import logging 
 logger = logging.getLogger(__name__)
 __author__ = 'Mathias Zechmeister'
@@ -69,8 +69,8 @@ class srv:
       bjd = np.atleast_1d(np.genfromtxt(pre+'.brv.dat', usecols=[0]))
 
       nn = [n for (n,t) in enumerate(bjd) if t in self.allrv[:,0]]
-      self.info = np.atleast_1d(np.genfromtxt(pre+'.info.cvs', dtype=('S'), usecols=[0], delimiter=';'))[nn]
-
+      self.info = np.atleast_1d(np.genfromtxt(pre+'.info.dat', dtype=('S'), usecols=[0], delimiter=';'))[nn]
+      self.info = np.char.decode(self.info)
       if not self.info.ndim:
          self.info = self.info[np.newaxis]
       info = " ".join(self.info)
@@ -213,8 +213,8 @@ class srv:
          ind = self.orders
          xc = np.mean(x[ind])
          crxml, e_crxml = chimap.mlcrx(x, xc, ind)
-         logger.info('crxml', crxml)
-         logger.info('crx  ', self.tcrx[1,n], self.tcrx[2,n])
+         logger.info(f'crxml {crxml}')
+         logger.info(f'crx  {self.tcrx[1,n]} {self.tcrx[2,n]}')
          chimap.plot_fit()
 
          nn = pause('%i/%i %s %s'% (n+1, self.N, self.bjd[n], self.info[n]))
@@ -756,7 +756,7 @@ class srv:
 
       pause(obj)
 
-if __name__ == "__main__":
+def main():
    '''
    Example:
    '''
