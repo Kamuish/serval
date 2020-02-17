@@ -266,22 +266,28 @@ def wstd(y, e, axis=None, dim=(), ret_err=False):
    w[ind] = 1. / e[ind]**2
 
    d = list(range(y.ndim))
+
    if axis is not None:
-      if isinstance(axis, int): axis = (axis,)
+      if isinstance(axis, int): 
+         axis = (axis,)  # make sure that we can iterate through the axis
+
       axis = [d[a] for a in axis]    # ensure positive index
+
       dim = [i for i in d if i not in axis]   # create complement
 
-   if isinstance(dim, int): dim = (dim,)
+   if isinstance(dim, int): 
+      dim = (dim,)
+
    s = None
    if dim:
       dim = [d[a] for a in dim]   # positive index
       s = [slice(None) if (a in dim) else None for a in d]   # new shape (to broadcast mean)
 
    with np.errstate(divide='ignore'):
-      nsum = np.einsum(ind.astype(float), d, dim)
+      nsum = np.einsum(ind.astype(float), d, dim)   
       wsum = np.einsum(w, d, dim).astype(float)
       wmean =  np.einsum(w, d, y, d, dim) / wsum
-      res = y - (wmean[s] if s else wmean)       # centering data
+      res = y - (wmean[tuple(s)] if s else wmean)       # centering data
       #wstd1 = (np.einsum(w, d, res, d, res, d, dim)/wsum)**.5   # does not work in 1.6.1 due to einsum bug
       wstd1 = (np.einsum(w, d, res*res, d, dim) / wsum)**.5
       out = (wstd1, wmean)
