@@ -237,7 +237,6 @@ def analyse_rv(obj, postiter=1, fibsuf='', oidx=None, safemode=False, pdf=False)
    # store post processed rvs
    RVpc = RVp - np.nan_to_num(RVd) - np.nan_to_num(RVsa)
    e_RVpc = np.sqrt(e_RVp**2 + np.nan_to_num(e_RVd)**2)
-   #unit_rvp = [open(obj+'/'+obj+'.post'+fibsuf+'.dat', 'w'), open(obj+'/'+obj+'.post.badrv'+fibsuf+'.dat', 'w')]
    np.savetxt(obj+'/'+obj+'.post'+fibsuf+'.dat', list(zip(sbjd, RVpc, e_RVpc, RVp, e_RVp, RVd, e_RVd, BRV, RVsa)), fmt='%s')
 
    logger.info('Statistic on dispersion in RV time series for' + str(obj))
@@ -984,7 +983,7 @@ def serval():
             with open(badfile, 'w') as bad_file:
                print(sp.bjd, sp.ccf.rvc, sp.ccf.err_rvc, sp.timeid, sp.flag, file=bad_file)
          
-         with open(bervfile, 'w') as berv_file:
+         with open(bervfile, 'a') as berv_file:
             print(sp.bjd, sp.berv, sp.drsbjd, sp.drsberv, sp.drift, sp.timeid, sp.tmmean, sp.exptime, sp.berv_start, sp.berv_end, file=berv_file)
          infowriter.writerow([sp.timeid, sp.bjd, sp.berv, sp.sn55, sp.obj, sp.exptime, sp.ccf.mask, sp.flag, sp.airmass, sp.ra, sp.de])
       
@@ -2091,9 +2090,11 @@ def serval():
       mypfile = [rvofile+'err', rvofile+'errbad']
 
       for n,sp in enumerate(spoklist):
-         if np.isnan(rvm[n]): sp.flag |= sflag.rvnan
+         if np.isnan(rvm[n]): 
+            sp.flag |= sflag.rvnan
          rvflag = int((sp.flag&(sflag.config+sflag.iod+sflag.rvnan)) > 0)
-         if rvflag: 'nan RV for file: '+sp.filename
+         if rvflag:
+            'nan RV for file: '+sp.filename
 
 
          create_print_file(rvunit[int(rvflag or np.isnan(sp.drift))], sp.bjd, RVc[n], e_RVc[n])
