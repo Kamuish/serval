@@ -4,11 +4,11 @@ import sys
 import argparse
 
 import numpy as np
-from gplot import *
-from pause import *
-from wstat import nanwsem, wmean, mlrms, wstd
+from src.utils.gplot import *
+from src.utils.pause import *
+from src.wstat import nanwsem, wmean, mlrms, wstd
 try:
-   import gls
+   import src.gls as gls
 except:
    print('Cannot import gls')
 
