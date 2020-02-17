@@ -44,9 +44,9 @@ def sun(YYYY, MM, DD, lon=-74.3, lat=40.9, zenith='nautical', rise=True):
                      'astronomical': 108}[zenith])
 
    # 1. first calculate the day of the year
-   N1 = floor(275 * MM / 9)
-   N2 = floor((MM + 9) / 12)
-   N3 = 1 + floor((YYYY - 4 * floor(YYYY/4) + 2) / 3)
+   N1 = floor(275 * MM // 9)
+   N2 = floor((MM + 9) // 12)
+   N3 = 1 + floor((YYYY - 4 * floor(YYYY/4) + 2) // 3)
    N = N1 - N2*N3 + DD - 30
 
    # 2. convert the longitude to hour value and calculate an approximate time
