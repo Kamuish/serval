@@ -102,9 +102,9 @@ class Targ:
 
    def tofile(self, filename=None):
       if filename:
-         with (open(filename, 'w') if filename else sys.stdout) as f:
+         with (open(filename, 'a') if filename else sys.stdout) as f:
             print(self.line, file=f)
-         logger.info('storing in', filename)
+         logger.info('storing in {}'.format(filename))
       else:
          logger.info(self.line)
 
