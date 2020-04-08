@@ -6,10 +6,8 @@ import numpy as np
 from subprocess import Popen, PIPE, STDOUT
 import argparse
 
-try:
-   import pyfits
-except:
-   import astropy.io.fits as pyfits
+
+import astropy.io.fits as pyfits
 
 path = os.path.dirname(__file__)
 if path=='': path='.'
@@ -73,11 +71,13 @@ def bary(dateobs, rammss, demmss, inst, epoch=2000, exptime=0.0, pma=0.0, pmd=0.
    dat.seek(0)
 
    p = Popen([path+'/bary.e'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
-   #p = Popen(['/home/raid0/zechmeister/programs/BarCor/bary.e'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
    eph = p.communicate(input="\n".join([par.name,dat.name,res.name])+"\n"); eph
    result = np.loadtxt(res.name,skiprows=8)
    os.remove(res.name)
    result[-2] = result[-2] + 2400000.
+
+   par.close()
+   dat.close()
    return result[-2:]
 
 def main(files, **kwargs):

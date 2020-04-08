@@ -7,6 +7,10 @@ SERVAL - SpEctrum Radial Velocity AnaLyser (%s)
      by %s
 ''' % (__version__, __author__)
 
+if 0:
+   import warnings 
+   warnings.filterwarnings('error')
+
 import argparse
 import copy
 import ctypes
@@ -19,7 +23,7 @@ import resource
 import stat as os_stat
 import sys
 import time
-
+import datetime 
 import importlib
 
 import numpy as np
@@ -27,19 +31,30 @@ from numpy import std,arange,zeros,where, polynomial,setdiff1d,polyfit,array, ne
 from scipy import interpolate, optimize
 from scipy.optimize import curve_fit
 
-from gplot import *
-from pause import pause, stop
-from wstat import wstd, wmean, wrms, rms, mlrms, iqr, wsem, nanwsem, nanwstd, naniqr, quantile
-from read_spec import flag, sflag, def_wlog, brvrefs   # flag, sflag, def_wlog
+from src.utils import pause, stop, write_handler
+from .wstat import wstd, wmean, wrms, rms, mlrms, iqr, wsem, nanwsem, nanwstd, naniqr, quantile
+from .read_spec import flag, sflag, def_wlog, brvrefs, Spectrum, airtovac   # flag, sflag, def_wlog
 
-from calcspec import redshift, dopshift, barshift, Calcspec ,qfacmask
+from .calcspec import redshift, dopshift, barshift, Calcspec ,qfacmask
 
-from targ import Targ
-import cubicSpline
-import cspline as spl
-import masktools
-import phoenix_as_RVmodel
-from chi2map import Chi2Map
+import src.calcspec as calcspec
+from .targ import Targ
+import src.cubicSpline as cubicSpline
+import src.cspline as spl
+import src.masktools
+import src.phoenix_as_RVmodel
+from .chi2map import Chi2Map
+
+
+import logging 
+logger = logging.getLogger(__name__)
+
+import astropy.io.fits as pyfits
+
+from .utils import create_print_file, build_parser, arg2slice, pause, stop
+from .utils import read_handler
+from .utils.consts import *
+from src.utils.gplot import *
 
 gplot2 = Gplot() # for a second plot window
 gplot.bar(0).colors('classic')
@@ -86,7 +101,6 @@ _pKolynomial.interpol1D.argtypes = [
    c_int, c_int          # nn, n
 ]
 
-c = 299792.4580   # [km/s] speed of light
 
 def nans(*args, **kwargs):
    return np.nan * np.empty(*args, **kwargs)
@@ -103,33 +117,11 @@ alhs = zeros((3, 3))
 def Using(point, verb=False):
     usage = resource.getrusage(resource.RUSAGE_SELF)
     if verb: 
-      print(('%s: usertime=%s systime=%s mem=%s mb' % (point,usage[0],usage[1],
+      logger.info(('%s: usertime=%s systime=%s mem=%s mb' % (point,usage[0],usage[1],
                 (usage[2]*resource.getpagesize())/1000000.0 )))
     return (usage[2]*resource.getpagesize())/1000000.0
 
 
-class Logger(object):
-
-   def __init__(self):
-      self.terminal = sys.stdout
-      self.logfile = None # open(logfilename, "a")
-      self.logbuf = ''
-
-   def flush(self):
-      # dummy for function astropy iers download; progress bar will not be shown
-      pass 
-
-   def write(self, message):   # fork the output to stdout and file
-      self.terminal.write(message)
-      if self.logfile:
-         self.logfile.write(message)
-      else:
-         self.logbuf += message
-
-   def logname(self, logfilename):
-       self.logfile = open(logfilename, 'a')
-       self.logfile.write(self.logbuf)
-       print(('logging to', logfilename))
 
 def minsec(t): return '%um%.3fs' % divmod(t, 60)   # format time
 
@@ -177,7 +169,7 @@ class Tpl:
 def analyse_rv(obj, postiter=1, fibsuf='', oidx=None, safemode=False, pdf=False):
    """
    """
-   print((obj+'/'+obj+'.rvc'+fibsuf+'.dat'))
+   logger.info((obj+'/'+obj+'.rvc'+fibsuf+'.dat'))
    allrv = np.genfromtxt(obj+'/'+obj+'.rvo'+fibsuf+'.dat')
    allerr = np.genfromtxt(obj+'/'+obj+'.rvo'+fibsuf+'.daterr')
    sbjd = np.genfromtxt(obj+'/'+obj+'.rvo'+fibsuf+'.dat', dtype=('|S33'), usecols=[0]) # as string
@@ -187,7 +179,7 @@ def analyse_rv(obj, postiter=1, fibsuf='', oidx=None, safemode=False, pdf=False)
       return   # just one line, e.g. drift
 
    bjd, RVc_old, e_RVc_old, RVd, e_RVd, RV_old, e_RV_old, BRV, RVsa = np.genfromtxt(obj+'/'+obj+'.rvc'+fibsuf+'.dat', dtype=None).T
-
+   print(obj)
    orders, = np.where(np.sum(allerr[:,5:]>0, 0))   # orders with all zero error values
    if oidx is not None:
       omiss = set(oidx) - set(orders)
@@ -195,6 +187,8 @@ def analyse_rv(obj, postiter=1, fibsuf='', oidx=None, safemode=False, pdf=False)
       else: orders = np.array(sorted(set(orders) & set(oidx)))
 
    omap = orders[:,newaxis]
+
+   print(allrv.shape, allerr.shape)
    rv, e_rv = allrv[:,5+orders], allerr[:,5+orders]
 
    RV, e_RV = nanwsem(rv, e=e_rv, axis=1)
@@ -212,7 +206,7 @@ def analyse_rv(obj, postiter=1, fibsuf='', oidx=None, safemode=False, pdf=False)
       ordmean += d_ordmean                # update ordmean
       ok &= np.abs(orddisp-d_ordmean) <= 3*ordstd  # clip and update mask
       if np.isnan(RVp.sum()) or np.isnan(e_RVp.sum()):
-         print('WARNING: nan in post RVs. Maybe to few measurements. Re-setting to originals.\n')
+         logger.warning('WARNING: nan in post RVs. Maybe to few measurements. Re-setting to originals.\n')
          RVp, e_RVp = RV, e_RV
          break
       else:
@@ -232,7 +226,7 @@ def analyse_rv(obj, postiter=1, fibsuf='', oidx=None, safemode=False, pdf=False)
       if not safemode: pause('correlation RV - chromatic index')
 
    snro = snr[:,2+orders]
-   print("total SNR:", np.sum(snro**2)**0.5)
+   logger.info("total SNR: {}".format(np.sum(snro**2)**0.5))
    if 1: # plot SNR
       gplot.reset().xlabel('"Order"; set ylabel "SNR"; set ytics nomirr; set y2label "total SNR"; set y2tics; set yrange[0:]; set y2range[0:]')
       gplot(snro, 'matrix us ($2+%i):3' % np.min(orders), flush='')
@@ -243,18 +237,17 @@ def analyse_rv(obj, postiter=1, fibsuf='', oidx=None, safemode=False, pdf=False)
    # store post processed rvs
    RVpc = RVp - np.nan_to_num(RVd) - np.nan_to_num(RVsa)
    e_RVpc = np.sqrt(e_RVp**2 + np.nan_to_num(e_RVd)**2)
-   #unit_rvp = [open(obj+'/'+obj+'.post'+fibsuf+'.dat', 'w'), open(obj+'/'+obj+'.post.badrv'+fibsuf+'.dat', 'w')]
    np.savetxt(obj+'/'+obj+'.post'+fibsuf+'.dat', list(zip(sbjd, RVpc, e_RVpc, RVp, e_RVp, RVd, e_RVd, BRV, RVsa)), fmt='%s')
 
-   print('Statistic on dispersion in RV time series for', obj)
-   print('        %10s %10s %10s %10s %10s'% ('mlrms [m/s]', 'std [m/s]', 'wstd [m/s]', 'iqr [m/s]', 'wiqr [m/s]'))
-   print('RVmed: %10.4f' % std(allrv[:,3]))
-   print('RV:   '+' %10.4f'*5 % (mlrms(RV,e_RV)[0], std(RV), wstd(RV,e_RV)[0], iqr(RV,sigma=True), iqr(RV, w=1/e_RV**2, sigma=True)))
-   print('RVp:  '+' %10.4f'*5 % (mlrms(RVp,e_RVp)[0], std(RVp), wstd(RVp,e_RVp)[0], iqr(RVp,sigma=True), iqr(RVp, w=1/e_RVp**2, sigma=True)))
-   print('RVc:  '+' %10.4f'*5 % (mlrms(RVc,e_RVc)[0], std(RVc), wstd(RVc,e_RVc)[0], iqr(RVc,sigma=True), iqr(RVc, w=1/e_RVc**2, sigma=True)))
-   print('RVpc: '+' %10.4f'*5 % (mlrms(RVpc,e_RVpc)[0], nanwstd(RVpc), nanwstd(RVpc,e=e_RVpc), naniqr(RVpc,sigma=True), iqr(RVpc, w=1/e_RVpc**2, sigma=True)))
-   print('median internal precision', np.median(e_RV))
-   print('Time span [d]: ', bjd.max()-bjd.min())
+   logger.info('Statistic on dispersion in RV time series for' + str(obj))
+   logger.info('        %10s %10s %10s %10s %10s'% ('mlrms [m/s]', 'std [m/s]', 'wstd [m/s]', 'iqr [m/s]', 'wiqr [m/s]'))
+   logger.info('RVmed: %10.4f' % std(allrv[:,3]))
+   logger.info('RV:   '+' %10.4f'*5 % (mlrms(RV,e_RV)[0], std(RV), wstd(RV,e_RV)[0], iqr(RV,sigma=True), iqr(RV, w=1/e_RV**2, sigma=True)))
+   logger.info('RVp:  '+' %10.4f'*5 % (mlrms(RVp,e_RVp)[0], std(RVp), wstd(RVp,e_RVp)[0], iqr(RVp,sigma=True), iqr(RVp, w=1/e_RVp**2, sigma=True)))
+   logger.info('RVc:  '+' %10.4f'*5 % (mlrms(RVc,e_RVc)[0], std(RVc), wstd(RVc,e_RVc)[0], iqr(RVc,sigma=True), iqr(RVc, w=1/e_RVc**2, sigma=True)))
+   logger.info('RVpc: '+' %10.4f'*5 % (mlrms(RVpc,e_RVpc)[0], nanwstd(RVpc), nanwstd(RVpc,e=e_RVpc), naniqr(RVpc,sigma=True), iqr(RVpc, w=1/e_RVpc**2, sigma=True)))
+   logger.info('median internal precision {}'.format(np.median(e_RV)))
+   logger.info('Time span [d]: {}'.format(bjd.max()-bjd.min()))
 
    gplot.reset().xlabel('"BJD - 2 450 000"; set ylabel "RV [m/s]"')
    gplot('"'+obj+'/'+obj+'.rvc'+fibsuf+'.dat" us ($1-2450000):2:3 w e pt 7 t "rvc %s"'%obj)
@@ -292,7 +285,7 @@ def analyse_rv(obj, postiter=1, fibsuf='', oidx=None, safemode=False, pdf=False)
       ogplot('"" us ($1+0.25):(0):(sprintf("%.2f",$2)) w labels rotate t""', flush='')
       ogplot(*ore+[ 'us 1:2:($3)  w point pal pt 6'])
       if not safemode: pause('ord scatter')
-   print('mean ord std:',np.mean(ordstd), ', median ord std:',np.median(ordstd))
+   logger.info('mean ord std: {}'.format(np.mean(ordstd)) + ', median ord std: {}'.format(np.median(ordstd)))
 
    if pdf:
       gplot.out()
@@ -312,32 +305,6 @@ def lineindex(l, r1, r2):
    return s, e
 
 
-
-lines = {
-         'Halpha': (6562.808, -15.5, 15.5),   # Kuerster et al. (2003, A&A, 403, 1077)
-         'Halpha': (6562.808, -40., 40.),
-         'Haleft': (6562.808, -300., -100.),
-         'Harigh': (6562.808, 100, 300),
-         'Haleft': (6562.808, -500., -300.),
-         'Harigh': (6562.808, 300, 500),
-         'CaI':    (6572.795, -15.5, 15.5),   # Kuerster et al. (2003, A&A, 403, 1077)
-         'CaH':    (3968.470, -1.09/2./3968.470*c, 1.09/2./3968.470*c), # Lovis et al. (2011, arXiv1107.5325)
-         'CaK':    (3933.664, -1.09/2./3933.664*c, 1.09/2./3933.664*c), # Lovis et al.
-         'CaIRT1': (8498.02, -15., 15.),      # NIST + my definition
-         'CaIRT1a': (8492, -40, 40),          # My definition
-         'CaIRT1b': (8504, -40, 40),          # My definition
-         'CaIRT2': (8542.09, -15., 15.),      # NIST + my definition
-         'CaIRT2a': (8542.09, -300, -200),    # My definition
-         'CaIRT2b': (8542.09, 250, 350),      # My definition, +50 due telluric
-         'CaIRT3': (8662.14, -15., 15.),      # NIST + my definition
-         'CaIRT3a': (8662.14, -300, -200),    # NIST + my definition
-         'CaIRT3b': (8662.14, 200, 300),      # NIST + my definition
-         'NaD1':   (5889.950943, -15., 15.),  # NIST + my definition
-         'NaD2':   (5895.924237, -15., 15.),  # NIST + my definition
-         'NaDref1': (5885, -40, 40),          # My definition
-         'NaDref2': ((5889.950+5895.924)/2, -40, 40),   # My definition
-         'NaDref3': (5905, -40, 40)           # My definition
-}
 
 def get_o_of_line(typ, wavemap):
    # find the orders of a spectral line
@@ -378,7 +345,6 @@ def getHalpha(v, typ='Halpha', line_o=None, rel=False, plot=False):
       mod = I + 0*sp.f[ind]
 
    if plot==True or typ in plot:
-      print(typ, I, e_I)
       gplot(sp.w[o], fmod[o], sp.f[o], 'us 1:2 w l lt 3 t "template", "" us 1:3 lt 1 t "obs"')
       ogplot(sp.w[ind], sp.f[ind], mod, 'lt 1 pt 7 t "'+typ+'", "" us 1:3 w l t "model", "" us 1:($2-$3) t "residuals"')
       pause()
@@ -388,10 +354,10 @@ def getHalpha(v, typ='Halpha', line_o=None, rel=False, plot=False):
 
 def polyreg(x2, y2, e_y2, v, deg=1, retmod=True):   # polynomial regression
    """Returns polynomial coefficients and goodness of fit."""
-   fmod = calcspec(x2, v, 1.)  # get the shifted template
+   fmod = Calcspec(x2, v, 1.)  # get the shifted template
    if 0: # python version
       ind = fmod>0.01     # avoid zero flux, negative flux and overflow
-      p,stat = polynomial.polyfit(x2[ind]-calcspec.wcen, y2[ind]/fmod[ind], deg-1, w=fmod[ind]/e_y2[ind], full=True)
+      p,stat = polynomial.polyfit(x2[ind]-Calcspec.wcen, y2[ind]/fmod[ind], deg-1, w=fmod[ind]/e_y2[ind], full=True)
       SSR = stat[0][0]
    else: # pure c version
       pstat = np.empty(deg*2-1)
@@ -401,18 +367,18 @@ def polyreg(x2, y2, e_y2, v, deg=1, retmod=True):   # polynomial regression
       ind = 0.0001
       # no check for zero division inside _pKolynomial.polyfit!
       #pause()
-      SSR = _pKolynomial.polyfit(x2, y2, e_y2, fmod, ind, x2.size, calcspec.wcen, deg, p, lhs, pstat)
+      SSR = _pKolynomial.polyfit(x2, y2, e_y2, fmod, ind, x2.size, Calcspec.wcen, deg, p, lhs, pstat)
       if SSR < 0:
          ii, = np.where((e_y2<=0) & (fmod>0.01))
-         print('WARNING: Matrix is not positive definite.', 'Zero or negative yerr values for ', ii.size, 'at', ii)
+         logger.warning('WARNING: Matrix is not positive definite.' + 'Zero or negative yerr values for {} at {}'.format(ii.size, ii))
          p = 0*p
          #pause(0)
 
       if 0: #abs(v)>200./1000.:
-         gplot(x2,y2,calcspec(x2, v, *p), ' w lp,"" us 1:3 w l, "" us 1:($2-$3) t "res [v=%f,SSR=%f]"'%(v, SSR))
+         gplot(x2,y2,Calcspec(x2, v, *p), ' w lp,"" us 1:3 w l, "" us 1:($2-$3) t "res [v=%f,SSR=%f]"'%(v, SSR))
          pause('v, SSR: ',v,SSR)
    if retmod: # return the model
-      return p, SSR, calcspec(x2, v, *p, fmod=fmod)
+      return p, SSR, Calcspec(x2, v, *p, fmod=fmod)
    return p, SSR
 
 def gauss(x, a0, a1, a2, a3):
@@ -561,8 +527,6 @@ def CCF(wt, ft, x2, y2, va, vb, e_y2=None, keep=None, plot=False, ccfmode='trape
       #gplot(xv2, normfac*yv2norm, normfac*ev2, iidx-iidx.min(), np.ediff1d(iidx, to_begin=0), 'us 1:2:4 w lp palette pt 7, "" us 1:2:3 w e pt 1 lt 1,', vgrid, normfac*SSR2mod, 'w l lc 0 lw 3 t"%.2f +/- %.2f m/s"'%(par2[0]*1000,perr2[2]*1000))
       ogplot(vgrid, SSR, SSRmod, 'w lp lt 7 pt 7 t "CCF", "" us 1:3 w l lt 7 lw 3 t"CCF fit %.2f +/- %.2f m/s"'%(params[0]*1000,perror[0]*1000))
 
-      pause(params[0]*1000, perror[0]*1000)
-      print(params[0]*1000, perror[0]*1000)
 
    if plot&1: pause()
    if plot&2:
@@ -586,11 +550,11 @@ def SSRstat(vgrid, SSR, dk=1, plot='maybe'):
    v = vgrid[k] - a[1]/2./a[2]   # position of parabola minimum
    e_v = np.nan
    if -1 in SSR:
-      print('opti warning: bad ccf.')
+      logger.warning('opti warning: bad ccf.')
    elif a[2] <= 0:
-      print('opti warning: a[2]=%f<=0.' % a[2])
+      logger.warning('opti warning: a[2]=%f<=0.' % a[2])
    elif not vgrid[0] <= v <= vgrid[-1]:
-      print('opti warning: v not in [va,vb].')
+      logger.warning('opti warning: v not in [va,vb].')
    else:
       e_v = 1. / a[2]**0.5
    if (plot==1 and np.isnan(e_v)) or plot==2:
@@ -616,13 +580,13 @@ def opti(va, vb, x2, y2, e_y2, p=None, vfix=False, plot=False):
    v, e_v, a = SSRstat(vgrid, SSR, plot=(not safemode)*(1+plot))
 
    if np.isnan(e_v):
-      v = vgrid[nk/2]   # actually it should be nan, but may the next clipping loop or plot use vcen
-      print(" Setting  v=" % v)
+      v = vgrid[nk//2]   # actually it should be nan, but may the next clipping loop or plot use vcen
+      logger.info(" Setting  v=" % v)
    if vfix: v = 0.
    p, SSRmin, fmod = polyreg(x2, y2, e_y2, v, len(p))   # final call with v
    if p[0] < 0:
       e_v = np.nan
-      print("Negative scale value. Setting  e_v= %f" % e_v)
+      logger.warning("Negative scale value. Setting  e_v= %f" % e_v)
 
    if 1 and (np.isnan(e_v) or plot) and not safemode:
       gplot(x2, y2, fmod, ' w lp, "" us 1:3 w lp lt 3')
@@ -644,8 +608,8 @@ def fitspec(tpl, w, f, e_f=None, v=0, vfix=False, clip=None, nclip=1, keep=None,
    """
    if keep is None: keep = np.arange(len(w))
    if clip is None: nclip = 0   # number of clip iterations; default 1
-   calcspec.wcen = np.mean(w[keep])
-   calcspec.tpl = tpl
+   Calcspec.wcen = np.mean(w[keep])  # FIXME: oh god, why does this work ?
+   Calcspec.tpl = tpl
 
    p = np.array([v, 1.] + [0]*deg)   # => [v,1,0,0,0]
    fMod = np.nan * w
@@ -687,13 +651,13 @@ def fitspec(tpl, w, f, e_f=None, v=0, vfix=False, clip=None, nclip=1, keep=None,
          if nreject: keep = keep[ind]   # prepare next clip loop
          # else: break
       if len(keep)<10: # too much rejected? too many negative values?
-         print("too much rejected, skipping")
+         logger.warning("too much rejected, skipping")
          break
       if 0 and np.abs(par.params[0]*1000)>20:
          if df:
             fMod = ft * p[1]     # compute also at bad pixels
          else:
-            fMod = calcspec(w, *p)     # compute also at bad pixels
+            fMod = Calcspec(w, *p)     # compute also at bad pixels
          gplot.y2tics().ytics('nomir; set y2range [-5:35];')
          gplot(w,fMod,' w lp pt 7 ps 0.5 t "fmod"')
          gplot+(w[keep],fMod[keep],' w lp pt 7 ps 0.5 t "fmod[keep]"')
@@ -707,7 +671,7 @@ def fitspec(tpl, w, f, e_f=None, v=0, vfix=False, clip=None, nclip=1, keep=None,
    if df is not None:
       fMod[indmod] = tpl[1][indmod]*p[1] - df[indmod]*p[1]*p[0]/c  # compute also at bad pixels
    else:
-      fMod[indmod] = calcspec(w[indmod], *p)   # compute also at bad pixels
+      fMod[indmod] = Calcspec(w[indmod], *p)   # compute also at bad pixels
 
    if chi2map:
       return par, fMod, keep, stat, ssr
@@ -718,9 +682,10 @@ def fitspec(tpl, w, f, e_f=None, v=0, vfix=False, clip=None, nclip=1, keep=None,
 
 def serval():
 
-   sys.stdout = Logger()
 
-   global obj, targ, oset, coadd, coset, last, tpl, sp, fmod, reana, inst, fib, look, looki, lookt, lookp, lookssr, pmin, pmax, debug, pspllam, kapsig, nclip, atmfile, skyfile, atmwgt, omin, omax, ptmin, ptmax, driftref, deg, targrv, tplrv
+   global v_lo,v_hi,v_step, obj, targ, oset, coadd, coset, last, tpl, sp, fmod, reana, inst, fib, look, looki, lookt, lookp, lookssr, pmin, pmax, debug, pspllam, kapsig, nclip, atmfile, skyfile, atmwgt, omin, omax, ptmin, ptmax, driftref, deg, targrv, tplrv
+   v_lo, v_hi, v_step = -5.5, 5.6, 0.1
+
 
    outdir = obj + '/'
    fibsuf = '_B' if inst=='FEROS' and fib=='B' else ''
@@ -788,7 +753,7 @@ def serval():
    os.system('mkdir -p '+obj)
 
    t0 = time.time()
-   print("start time:", time.strftime("%Y-%m-%d %H:%M:%S %a", time.localtime()))
+   logger.info("start time: {}".format(time.strftime("%Y-%m-%d %H:%M:%S %a", time.localtime())))
 
    if fib == 'B' or (ccf is not None and 'th_mask' in ccf):
       pass
@@ -812,20 +777,20 @@ def serval():
    targ.pmra, targ.pmde = targpm
 
    if targ.name == 'cal':
-      print('no barycentric correction (calibration)')
+      logger.info('no barycentric correction (calibration)')
    elif targ.ra and targ.de or targ.name:
       targ = Targ(targ.name, targrade, targpm, plx=targplx, rv=targrv, cvs=obj+'/'+obj+'.targ.cvs')
-      print(' using sa=', targ.sa, 'm/s/yr', 'ra=', targ.ra, 'de=', targ.de, 'pmra=', targ.pmra, 'pmde=', targ.pmde)
+
+      logger.info(' using sa={} m/s/yr, ra={}; de={}; pmra={}, pmde={}'.format(targ.sa, targ.ra, targ.de, targ.pmra, targ.pmde))
    else:
-      print('using barycentric correction from DRS')
+      logger.info('using barycentric correction from DRS')
 
    # choose the interpolation type
    spltype = 3 # 3=> fast version
    spline_cv = {1: interpolate.splrep, 2: cubicSpline.spl_c,  3: cubicSpline.spl_cf }[spltype]
    spline_ev = {1: interpolate.splev,  2: cubicSpline.spl_ev, 3: cubicSpline.spl_evf}[spltype]
 
-   print(dir_or_inputlist)
-   print('tpl=%s pmin=%s nset=%s omin=%s omax=%s' % (tpl, pmin, nset, omin, omax))
+   logger.info('tpl=%s pmin=%s nset=%s omin=%s omax=%s' % (tpl, pmin, nset, omin, omax))
 
    ''' SELECT FILES '''
    files = sorted(glob.glob(dir_or_inputlist+os.sep+pat))
@@ -835,18 +800,18 @@ def serval():
       if dir_or_inputlist.endswith(('.txt', '.lis')) or isfifo:
          files = []
          with open(dir_or_inputlist) as f:
-            print('getting filenames from file (',dir_or_inputlist,'):')
+            logger.info('getting filenames from file ({}):'.format(dir_or_inputlist))
             for line in f:
                line = line.split()   # remove comments
                if line:
                   if os.path.isfile(line[0]):
                      files += [line[0]]
-                     print(len(files), files[-1])
+                     logger.info('{} - {}'.format(len(files), files[-1]))
                   else:
-                     print('skipping:', line[0])
+                     logger.info('skipping: {}'.format(line[0]))
          if fib == 'B':
            files = [f.replace('_A.fits','_B.fits') for f in files]
-           print('renaming', files)
+           logger.info('renaming {}'.format(files))
       else:
          # case if dir_or_inputlist is one fits-file
          files = [dir_or_inputlist]
@@ -870,7 +835,7 @@ def serval():
    files = np.array(files)[nset]
    nspec = len(files)
    if not nspec:
-      print("no spectra found in", dir_or_inputlist, 'or using ', pat, inst)
+      logger.fatal("no spectra found in", dir_or_inputlist, 'or using ', pat, inst)
       exit()
    # expand slices to index arrays
    if look: look = np.arange(iomax)[look]
@@ -878,23 +843,24 @@ def serval():
    if lookp: lookp = np.arange(iomax)[lookp]
    if lookssr: lookssr = np.arange(iomax)[lookssr]
 
-   if outfmt or outchi: os.system('mkdir -p '+obj+'/res')
-   with open(outdir+'lastcmd.txt', 'w') as f:
-      print(' '.join(sys.argv), file=f)
+   if outfmt or outchi: 
+      os.system('mkdir -p '+obj+'/res')
+      create_print_file(outdir+'lastcmd.txt', ' '.join(sys.argv))
    with open('cmdhistory.txt', 'a') as f:
       print(' '.join(sys.argv), file=f)
 
-   badfile = file(outdir + obj + '.flagdrs' + fibsuf + '.dat', 'w')
-   infofile = file(outdir + obj + '.info' + fibsuf + '.cvs', 'w')
-   bervfile = open(outdir + obj + '.brv' + fibsuf + '.dat', 'w')
-   prefile = outdir + obj + '.pre' + fibsuf + '.dat'
-   rvofile = outdir + obj + '.rvo' + fibsuf + '.dat'
-   snrfile = outdir + obj + '.snr' + fibsuf + '.dat'
-   chifile = outdir + obj + '.chi' + fibsuf + '.dat'
-   halfile = outdir + obj + '.halpha' + fibsuf + '.dat'
-   nadfile = outdir + obj + '.nad' + fibsuf + '.dat'
-   irtfile = outdir + obj + '.cairt' + fibsuf + '.dat'
-   dfwfile = outdir + obj + '.dlw' + fibsuf + '.dat'
+   construct_path = lambda initial : outdir + obj + '.' + initial + fibsuf + '.dat'
+
+   badfile = construct_path('flagdrs')
+   bervfile = construct_path('brv')  
+   prefile = construct_path('pre')
+   rvofile = construct_path('rvo')
+   snrfile = construct_path('snr')
+   chifile = construct_path('chi')
+   halfile = construct_path('halpha')
+   nadfile = construct_path('nad')
+   irtfile = construct_path('cairt')
+   dlwfile = construct_path('dlw')
 
    # (echo 0 0 ; awk '{if($2!=x2){print x; print $0}; x=$0; x2=$2;}' telluric_mask_atlas.dat )> telluric_mask_atlas_short.dat
    #################################
@@ -930,7 +896,6 @@ def serval():
       if 'mask_ne' in atmfile:
          maskfile = servallib + atmfile
 
-      print('maskfile', maskfile)
       mask = np.genfromtxt(maskfile, dtype=None)
 
       if 'telluric_mask_atlas_short.dat' in maskfile:
@@ -948,10 +913,7 @@ def serval():
 
    msksky = [0] * iomax
    if 1 and inst.name=='CARM_VIS':
-      try:
-         import astropy.io.fits as pyfits
-      except:
-         import pyfits
+
       msksky = flag.atm * pyfits.getdata(servallib + 'carm_vis_tel_sky.fits')
 
    if msklist: # convert line list to mask
@@ -959,11 +921,11 @@ def serval():
       mask[:,1] = mask[:,1] == 0  # invert mask; actually the telluric mask should be inverted (so that 1 means good)
 
    if mask is None:
-      print('using telluric mask: NONE')
+      logger.info('using telluric mask: NONE')
    else:
       # make the discrete mask to a continuous mask via linear interpolation
       tellmask = interp(lam2wave(mask[:,0]), mask[:,1])
-      print('using telluric mask: ', maskfile)
+      logger.info('using telluric mask: {}'.format(maskfile))
 
    if 0:
       mask2 = np.genfromtxt('telluric_add.dat', dtype=None)
@@ -986,55 +948,61 @@ def serval():
    splist = []
    spi = None
    SN55best = 0.
-   print("    # %*s %*s OBJECT    BJD        SN  DRSBERV  DRSdrift flag calmode" % (-len(inst.name)-6, "inst_mode", -len(os.path.basename(files[0])), "timeid"))
-   infowriter = csv.writer(infofile, delimiter=';', lineterminator="\n")
+   logger.info("    # %*s %*s OBJECT    BJD        SN  DRSBERV  DRSdrift flag calmode" % (-len(inst.name)-6, "inst_mode", -len(os.path.basename(files[0])), "timeid"))
 
-   for n,filename in enumerate(files):   # scanning fitsheader
-      print('%3i/%i' % (n+1, nspec), end=' ')
-      sp = Spectrum(filename, inst=inst, pfits=2 if 'HARPS' in inst.name else True, drs=drs, fib=fib, targ=targ, verb=True)
-      splist.append(sp)
-      sp.sa = targ.sa / 365.25 * (sp.bjd-splist[0].bjd)
-      sp.header = None   # saves memory(?), but needs re-read (?)
-      if inst.name == 'HARPS' and drs: sp.ccf = read_harps_ccf(filename)
-      if sp.sn55 < snmin or np.isnan(sp.sn55): sp.flag |= sflag.lowSN
-      if sp.sn55 > snmax or np.isnan(sp.sn55): sp.flag |= sflag.hiSN
-      if distmax and sp.ra and sp.de:
-         # check distance for mis-pointings
-         # yet no proper motion included
-         ra = (targ.ra[0] + (targ.ra[1]/60 + targ.ra[2]/3600)* np.sign(targ.ra[0]))*15   # [deg]
-         de = targ.de[0] + (targ.de[1]/60 + targ.de[2]/3600)* np.sign(targ.de[0])   # [deg]
-         dist = np.sqrt(((sp.ra-ra)*np.cos(np.deg2rad(sp.de)))**2 + (sp.de-de)**2) * 3600
-         if dist > distmax: sp.flag |= sflag.dist
-      if not sp.flag:
-         if SN55best < sp.sn55 < snmax:
-            SN55best = sp.sn55
-            spi = n
-      else:
-         print(sp.bjd, sp.ccf.rvc, sp.ccf.err_rvc, sp.timeid, sp.flag, file=badfile)
-      print(sp.bjd, sp.berv, sp.drsbjd, sp.drsberv, sp.drift, sp.timeid, sp.tmmean, sp.exptime, sp.berv_start, sp.berv_end, file=bervfile)
-      infowriter.writerow([sp.timeid, sp.bjd, sp.berv, sp.sn55, sp.obj, sp.exptime, sp.ccf.mask, sp.flag, sp.airmass, sp.ra, sp.de])
-      #print >>infofile, sp.timeid, sp.bjd, sp.berv, sp.sn55, sp.obj, sp.exptime, sp.ccf.mask, sp.flag
+   with open(construct_path('info'), 'w') as infofile:
+      infowriter = csv.writer(infofile, delimiter=';', lineterminator="\n")
 
-   badfile.close()
-   bervfile.close()
-   infofile.close()
-   sys.stdout.logname(obj+'/log.'+obj)
+      for n,filename in enumerate(files):   # scanning fitsheader
+         logging.info('Scanning fitsheader %3i/%i' % (n+1, nspec))
+         sp = Spectrum(filename, inst=inst, pfits=2 if 'HARPS' in inst.name else True, drs=drs, fib=fib, targ=targ, verb=True)
+
+         splist.append(sp)
+         sp.sa = targ.sa / 365.25 * (sp.bjd-splist[0].bjd)
+         sp.header = None   # saves memory(?), but needs re-read (?)
+         if inst.name == 'HARPS' and drs: 
+            sp.ccf = read_handler('harps_ccf', filename)
+         if sp.sn55 < snmin or np.isnan(sp.sn55): 
+            sp.flag |= sflag.lowSN
+         if sp.sn55 > snmax or np.isnan(sp.sn55): 
+            sp.flag |= sflag.hiSN
+            
+         if distmax and sp.ra and sp.de:
+            # check distance for mis-pointings
+            # yet no proper motion included
+            ra = (targ.ra[0] + (targ.ra[1]/60 + targ.ra[2]/3600)* np.sign(targ.ra[0]))*15   # [deg]
+            de = targ.de[0] + (targ.de[1]/60 + targ.de[2]/3600)* np.sign(targ.de[0])   # [deg]
+            dist = np.sqrt(((sp.ra-ra)*np.cos(np.deg2rad(sp.de)))**2 + (sp.de-de)**2) * 3600
+            if dist > distmax:
+               sp.flag |= sflag.dist
+         if not sp.flag:
+            if SN55best < sp.sn55 < snmax:
+               SN55best = sp.sn55
+               spi = n
+         else:
+            with open(badfile, 'w') as bad_file:
+               print(sp.bjd, sp.ccf.rvc, sp.ccf.err_rvc, sp.timeid, sp.flag, file=bad_file)
+         
+         with open(bervfile, 'a') as berv_file:
+            print(sp.bjd, sp.berv, sp.drsbjd, sp.drsberv, sp.drift, sp.timeid, sp.tmmean, sp.exptime, sp.berv_start, sp.berv_end, file=berv_file)
+         infowriter.writerow([sp.timeid, sp.bjd, sp.berv, sp.sn55, sp.obj, sp.exptime, sp.ccf.mask, sp.flag, sp.airmass, sp.ra, sp.de])
+      
 
    t1 = time.time() - t0
-   print(nspec, "spectra read (%s)\n" % minsec(t1))
+   logger.info("{} spectra read ({})".format(nspec,minsec(t1)))
 
    # filter for the good spectra
    check_daytime = True
    spoklist = []
    for sp in splist:
       if sp.flag & (sflag.nosci|sflag.config|sflag.iod|sflag.dist|sflag.lowSN|sflag.hiSN|sflag.led|check_daytime*sflag.daytime):
-         print('bad spectra:', sp.timeid, sp.obj, sp.calmode, 'sn: %s flag: %s %s' % (sp.sn55, sp.flag, sflag.translate(sp.flag)))
+         logger.warning('bad spectra: {} {} {} '.format(sp.timeid, sp.obj, sp.calmode) + 'sn: %s flag: %s %s' % (sp.sn55, sp.flag, sflag.translate(sp.flag)))
       else:
          spoklist += [sp]
 
    nspecok = len(spoklist)
    if not nspecok:
-      print("WARNING: no good spectra")
+      logger.warning("WARNING: no good spectra")
       if not safemode: pause()   # ???
 
    snrmedian = np.median([sp.sn55 for sp in spoklist])
@@ -1046,7 +1014,7 @@ def serval():
    ### Template canditates ########
    ################################
    if spi is None:
-      print('No highest S/N found; selecting first file as reference')
+      logger.info('No highest S/N found; selecting first file as reference')
       spi = 0
 
    if last:
@@ -1071,8 +1039,8 @@ def serval():
    #Q = np.sqrt(np.nansum(Wi**2, axis=1)) / np.sqrt(np.nansum((spt.f[:,1:-1] / spt.e[:,1:-1])**2, axis=1) # a robust variant
    #gplot(Q)
 
-   print('median SN:', snrmedian)
-   print('template:', spt.timeid, 'SN55', spt.sn55, '#', spi, ' <e_rv>=%0.2fm/s, <Q>=%s' % (np.median(dv)*1000, np.median(Q)))
+   logger.info('median SN: {}'.format(snrmedian))
+   logger.info('template: {} SN55 {} # {}'.format(spt.timeid, spt.sn55, spi) + ' <e_rv>=%0.2fm/s, <Q>=%s' % (np.median(dv)*1000, np.median(Q)))
 
    # find the order where to measure the line indices
    line_o = {}
@@ -1090,7 +1058,6 @@ def serval():
    ################################
    ### Select high S_N template ###
    ################################
-   print('')
    ntpix = ptmax - ptmin
    pixxx = arange((ntpix-1)*4+1) / 4.
    osize = len(pixxx)
@@ -1112,11 +1079,11 @@ def serval():
       if ccf:
          ccfmask = np.loadtxt(servallib + ccf)
       elif driftref:
-         print(driftref)
+         logger.info(driftref)
          spt = Spectrum(driftref, inst=inst, pfits=True, orders=np.s_[:], drs=drs, fib=fib, targ=targ)
          ww, ff = spt.w, spt.f
       elif isinstance(tpl, str):
-         print("restoring template: ", tpl)
+         logger.info("restoring template: " + tpl)
          try:
             if 'phoe' in tpl:
                #if 'PHOENIX-ACES-AGSS-COND' in tpl:
@@ -1128,10 +1095,10 @@ def serval():
             elif tpl.endswith('template.fits') or os.path.isdir(tpl):
                # last option
                # read a spectrum stored order wise
-               ww, ff, head = read_template(tpl+(os.sep+'template.fits' if os.path.isdir(tpl) else ''))
+               ww, ff, head = read_handler('template', tpl+(os.sep+'template.fits' if os.path.isdir(tpl) else ''))
                TPL = [Tpl(wo, fo, spline_cv, spline_ev) for wo,fo in zip(ww,ff)]
                if 'HIERARCH SERVAL COADD NUM' in head:
-                  print('HIERARCH SERVAL COADD NUM:', head['HIERARCH SERVAL COADD NUM'])
+                  logger.info('HIERARCH SERVAL COADD NUM: {}'.format(head['HIERARCH SERVAL COADD NUM']))
                   if omin<head['HIERARCH SERVAL COADD COMIN']: pause('omin to small')
                   if omax>head['HIERARCH SERVAL COADD COMAX']: pause('omax to large')
                TPLrv = head['HIERARCH SERVAL TARG RV']
@@ -1142,7 +1109,7 @@ def serval():
                TPL = [Tpl(wo, fo, spline_cv, spline_ev, mask=True, berv=spt.berv) for wo,fo in zip(barshift(spt.w,spt.berv),spt.f)]
                TPLrv = spt.ccf.rvc
          except:
-            print('ERROR: could not read template:', tpl)
+            logger.fatal('ERROR: could not read template: {}'.format(tpl))
             exit()
 
          if inst.name == 'FEROS':
@@ -1213,15 +1180,15 @@ def serval():
       if np.isfinite(targrvs['drsspt']):
          targrv_src = 'drsspt'
       else:
-         print('DRS RV is NaN in spt, trying median')
+         logger.warning('DRS RV is NaN in spt, trying median')
          if np.isfinite(targrvs['drsmed']):
             targrv_src = 'drsmed'
          else:
-            print('DRS RV is NaN in all spec, simbad RV')
+            logger.warning('DRS RV is NaN in all spec, simbad RV')
             targrv_src = 'simbad'
 
    targrv = targrvs.get(targrv_src, 0)
-   print('setting targ RV to: %s km/s (%s)' % (targrv, targrv_src))
+   logger.info('setting targ RV to: %s km/s (%s)' % (targrv, targrv_src))
 
    if tplrv_src=='auto' and np.isfinite(TPLrv):
       # for external templates take value from fits header
@@ -1230,7 +1197,7 @@ def serval():
       tplrv_src = targrv_src
 
    tplrv = targrvs.get(tplrv_src, 0)
-   print('setting tpl RV to:  %s km/s (%s)' % (tplrv, tplrv_src))
+   logger.info('setting tpl RV to:  %s km/s (%s)' % (tplrv, tplrv_src))
 
 
    if skippre or vtfix:
@@ -1244,13 +1211,13 @@ def serval():
 
    for iterate in range(1, niter+1):
 
-      print('\nIteration %s / %s (%s)' % (iterate, niter, obj))
+      logger.info('\nIteration %s / %s (%s)' % (iterate, niter, obj))
 
       if RV is not None:
          ################################
          ### create high S_N template ###
          ################################
-         print('coadding method: post3')
+         logger.info('coadding method: post3')
          coadd == 'post3'
          tpl = outdir + 'template_' +coadd + fibsuf + '.fits'
 
@@ -1272,9 +1239,9 @@ def serval():
          for o in corders:
             print("coadding o %02i:" % o, end=' ')     # continued below in iteration loop
             for n,sp in enumerate(spoklist[tset]):
-             '''get the polynomials'''
-             if not sp.flag:
-               sp = sp.get_data(pfits=2, orders=o)
+               '''get the polynomials'''
+               if not sp.flag:
+                  sp = sp.get_data(pfits=2, orders=o)
                if atmspec:
                   ft = atmmod(sp.w)
                   sp.f = sp.f / ft
@@ -1314,7 +1281,7 @@ def serval():
                bmod[n][:i0] |= flag.out
                bmod[n][ie:] |= flag.out
                if np.sum(sp.f[pind]<0) > 0.4*pind.size:
-                  print('too many negative data points in n=%s, o=%s, RV=%s; skipping order' % (n, o, RV[n]))
+                  logger.warning('too many negative data points in n=%s, o=%s, RV=%s; skipping order' % (n, o, RV[n]))
                   wmod[n] = np.nan
                   mod[n] = np.nan
                   emod[n] = np.nan
@@ -1327,14 +1294,14 @@ def serval():
                    pind = np.intersect1d(pind, ii)
                    #gplot(sp.w[i0:ie], sp.f[i0:ie],',',sp.w[i0:ie][uind],sp.f[i0:ie][uind],',',sp.w[i0:ie][pind], sp.f[i0:ie][pind])
                if not len(pind):
-                  print('no valid points in n=%s, o=%s, RV=%s; skipping order' % (n, o, RV[n]))
+                  logger.critical('no valid points in n=%s, o=%s, RV=%s; skipping order' % (n, o, RV[n]))
                   if not safemode: pause()
                   break
 
                # get poly from fit with mean RV
                par, fmod, keep, stat = fitspec(TPL[o],
                   w2[i0:ie], sp.f[i0:ie], sp.e[i0:ie], v=0, vfix=True, keep=pind, v_step=False, clip=kapsig, nclip=nclip, deg=deg)   # RV  (in dopshift instead of v=RV; easier masking?)
-               poly = calcspec(w2, *par.params, retpoly=True)
+               poly = Calcspec(w2, *par.params, retpoly=True)
                #gplot( w2,sp.fo/poly); ogplot( w2[i0:ie],fmod/poly[i0:ie],' w lp ps 0.5'); ogplot(ww[o], ff[o],'w l')
                wmod[n] = w2
                mod[n] = sp.f / poly   # be careful if  poly<0
@@ -1343,7 +1310,8 @@ def serval():
                   #gplot(sp.w,sp.f,poly, ',"" us 1:3,', sp.w[i0:ie],(sp.f / poly)[i0:ie], ' w l,',ww[o], ff[o], 'w l')
                   gplot(w2,sp.f,poly, ',"" us 1:3,', w2[i0:ie],(sp.f / poly)[i0:ie], ' w l,',ww[o], ff[o], 'w l')
                   pause(n)
-              #(fmod<0) * flag.neg
+               #(fmod<0) * flag.neg
+            
             ind = (bmod&(flag.nan+flag.neg+flag.out)) == 0 # not valid
             tellind = (bmod&(flag.atm+flag.sky)) > 0                  # valid but down weighted
             #emod[tellind] *= 1000
@@ -1361,7 +1329,6 @@ def serval():
                #we[tellind] *= (mod[tellind]/np.percentile(mod[ind+~tellind],95)).clip(0.02,1)**4 / 10
                fcont = np.abs(np.percentile(mod[ind&~tellind],95)*1.1)
                #fcont = quantile(mod[ind&~tellind], 0.95, w=1/emod[ind&~tellind])*1.1
-               print(fcont)
                #we[tellind] = 1/(5*emod[tellind]**2 + (mod[tellind]-fcont)**2)
                #we[tellind] = 0.1/emod[tellind]**2   # for low S/N # keeps the relative S/N properties of the data
                #we[tellind] = 1/(emod[tellind]**2 + (fcont*np.log(abs(mod[tellind]/fcont).clip(1e-6)))**2) # for high S/N
@@ -1388,6 +1355,7 @@ def serval():
                   # deviation of mu should be as large or larger than mu
                   e_mu = pe_mu * mu  # 5 *mu
 
+               #print('ucbspl_fit:', ind)
                smod, ymod = spl.ucbspl_fit(wmod[ind], mod[ind], we[ind], K=nk, lam=pspllam, mu=mu, e_mu=e_mu, e_yk=True, retfit=True)
 
                #yfit = ww[o]* 0 # np.nan
@@ -1414,7 +1382,7 @@ def serval():
                if np.isnan(sig):
                   msg ='nan err_values in coadding. This may happen when data have gaps e.g. due masking or bad pixel flaging. Try the -pspline option'
                   if safemode:
-                     print(msg)
+                     logger.fatal(msg)
                      exit()
                   pause(msg)
                   gplot(wmod[ind], mod[ind], we[ind])
@@ -1422,12 +1390,12 @@ def serval():
                   # flexible sig
                   # sig = np.sqrt(spl._ucbspl_fit(wmod[ind], res**2, K=nk/5)[0])  # not good, van be negative
                   # get fraction of the data to each knot for weighting
-                  G, kkk = spl._cbspline_Bk(wmod[ind], nk/5)
-                  chik = np.zeros(nk/5+2)   # chi2 per knot
-                  normk = np.zeros(nk/5+2)  # normalising factor to compute local chi2_red
+                  G, kkk = spl._cbspline_Bk(wmod[ind], nk//5) # // for python2 compatibility
+                  chik = np.zeros(nk//5+2)   # chi2 per knot
+                  normk = np.zeros(nk//5+2)  # normalising factor to compute local chi2_red
                   for k in range(4):
-                     normk += np.bincount(kkk+k, G[k], nk/5+2)
-                     chik += np.bincount(kkk+k, res**2 * G[k], nk/5+2)
+                     normk += np.bincount(kkk+k, G[k], nk//5+2)
+                     chik += np.bincount(kkk+k, res**2 * G[k], nk//5+2)
 
                   vara = spl.ucbspl(chik/normk, wmod[ind].min(), wmod[ind].max())
                   sig = np.sqrt(vara(wmod[ind]))
@@ -1486,7 +1454,7 @@ def serval():
                   sn.append(signal/noise)
             sn = np.sum(np.array(sn)**2)**0.5
 
-            print(' S/N: %.5f' % sn)
+            logger.info(' S/N: %.5f' % sn)
             spt.header['HIERARCH SERVAL COADD SN%03i' % o] = (float("%.3f" % sn), 'signal-to-noise estimate')
             if ofacauto:
                spt.header['HIERARCH SERVAL COADD K%03i' % o] = (Ko, 'optimal knot number')
@@ -1554,15 +1522,30 @@ def serval():
          spt.header['HIERARCH SERVAL TARG RV SRC'] = (targrv_src, 'Origin of TARG RV')
 
          # Oversampled template
-         write_template(tpl, ff, ww, spt.header, hdrref='', clobber=1)
+
+         config_dict = {
+               'clobber':1,
+               'hdrref':'',
+               'header': spt.header,
+               'flux': ff,
+               'wave':ww
+         }
+         write_handler('template', tpl,  ** config_dict)
          # Knot sampled template
-         write_res(outdir+obj+'.fits', {'spec':fk, 'sig':ek, 'wave':wk, 'nmap':bk}, tfmt, spt.header, hdrref='', clobber=1)
+
+         config_dict = {
+               'clobber':1,
+               'hdrref':'',
+               'header': spt.header,
+               'data': {'spec':fk, 'sig':ek, 'wave':wk, 'nmap':bk},
+               'extnames': tfmt
+         }
+         write_handler('res', outdir+obj+'.fits', ** config_dict)
          os.system("ln -sf " + os.path.basename(tpl) + " " + outdir + "template.fits")
-         print('\ntemplate written to ', tpl)
-         if 0: os.system("ds9 -mode pan '"+tpl+"[1]' -zoom to 0.08 8 "+tpl+"  -single &")
+         logger.info('template written to ' +  tpl)
 
          # end of coadding
-      print("time: %s\n" % minsec(time.time()-to))
+      logger.info("time: %s\n" % minsec(time.time()-to))
 
       lstarmask = nomask # only 1D arrays
       do_reg = False
@@ -1574,7 +1557,7 @@ def serval():
          for o in orders:
             ii = np.isfinite(ff[o])
             if do_reg:
-               print('q factor masking order ', o)
+               logger.info('q factor masking order {}'.format(o))
                reg[o] = qfacmask(ww[o],ff[o]) #, plot=True)
 
       if do_reg:
@@ -1673,8 +1656,8 @@ def serval():
       dLW, e_dLW = nans((2, nspec)) # differential width change
       dlw, e_dlw = nans((2, nspec, nord)) # differential width change
 
-      print('Iteration %s / %s (%s)' % (iterate, niter, obj))
-      print("RV method: ", 'CCF' if ccf else 'DRIFT' if diff_rv else 'LEAST SQUARE')
+      logger.info('Iteration %s / %s (%s)' % (iterate, niter, obj))
+      logger.info("RV method: " + 'CCF' if ccf else 'DRIFT' if diff_rv else 'LEAST SQUARE')
 
       for n,sp in enumerate(spoklist):
          #if sp.flag:
@@ -1837,7 +1820,7 @@ def serval():
                   #ftmod_tmp[i0:i1] = calcspec(ww[o][i0:i1], *par.params) #calcspec does not work when w < wtmin
                   #ftmod_tmp[0:i0] = ftmod_tmp[i0]
                   #ftmod_tmp[i1:] = ftmod_tmp[i1-1]
-                  poly = calcspec(wmod, *par.params, retpoly=True)
+                  poly = Calcspec(wmod, *par.params, retpoly=True)
 
 
                   '''estimate differential changes in line width ("FWHM")
@@ -1860,7 +1843,6 @@ def serval():
                   if moon:
                      # simple moon contamination
                      a1, a0 = np.polyfit(f2mod[keep], f2[keep], 1)
-                     print(a1, a0)
                      if 0:
                         gplot(w2[keep], f2mod[keep],'w lp,',w2[keep], f2[keep], ' w lp')
                         gplot(f2mod[keep], f2[keep], w2[keep],' palette , x, %s+%s*x' %(a0,a1) )
@@ -1870,7 +1852,7 @@ def serval():
                      #pause(o)
 
                      f2 = f2c = (f2-a0)/a1 # correct observation
-
+                     print("GOT HERE; serval.py : ", 1, e2[keep], 1/e2[keep])
                      dlwo = c**2 * np.dot(1/e2[keep]**2*ddy[keep], (f2c-f2mod)[keep]) / np.dot(1/e2[keep]**2*ddy[keep], ddy[keep])
                      e_dlwo = c**2 * np.sqrt(1 / np.dot(1/e2[keep]**2, ddy[keep]**2))
                   else:
@@ -1893,7 +1875,6 @@ def serval():
             snr[n,o] = stat['snr']
             rchi[n,o] = stat['std']
             Nok[n,o] = len(keep)
-
             if not diff_rv:
                vgrid = chi2mapo[0]
                chi2map[o] = chi2mapo[1] # chi2mapo[1].min() - (a[0]+a[1]*v+a[2]*v**2)
@@ -1905,7 +1886,8 @@ def serval():
                #pause(o)
 
             e_rv[n,o] = par.perror[0] * stat['std'] * 1000
-            if verb: print("%s-%02u  %s  %7.2f +/- %5.2f m/s %5.2f %5.1f it=%s %s" % (n+1, o, sp.timeid, rvo, par.perror[0]*1000., stat['std'], stat['snr'], par.niter, np.size(keep)))
+            if verb: 
+               logger.info("%s-%02u  %s  %7.2f +/- %5.2f m/s %5.2f %5.1f it=%s %s" % (n+1, o, sp.timeid, rvo, par.perror[0]*1000., stat['std'], stat['snr'], par.niter, np.size(keep)))
 
             clipped = np.sort(list(set(pind).difference(set(keep))))
             if len(clipped):
@@ -1947,7 +1929,7 @@ def serval():
          RV[n], e_RV[n] = wsem(rv[n,ind], e=e_rv[n,ind])
          RVc[n] = RV[n] - np.nan_to_num(sp.drift) - np.nan_to_num(sp.sa)
          e_RVc[n] = np.sqrt(e_RV[n]**2 + np.nan_to_num(sp.e_drift)**2)
-         print(n+1, '/', nspec, sp.timeid, sp.bjd, RV[n], e_RV[n])
+         logger.info( '{}/{}'.format(n+1, ' '.join([str(i) for i in [ nspec, sp.timeid, sp.bjd, RV[n], e_RV[n]]])))
 
          # Chromatic trend
          if 1:
@@ -2095,68 +2077,59 @@ def serval():
          np.savetxt(prefile, list(zip(bjd[:nspecok], RV[:nspecok], e_RV[:nspecok])), fmt="%s")
          continue
       # write final results
-      rvfile = outdir+obj+fibsuf+'.dat'
-      rvcfile = outdir+obj+'.rvc'+fibsuf+'.dat'
-      crxfile = outdir+obj+'.crx'+fibsuf+'.dat'
-      mlcfile = outdir+obj+'.mlc'+fibsuf+'.dat' # maximum likehood estimated RVCs and CRX
-      srvfile = outdir+obj+'.srv'+fibsuf+'.dat' # serval top-level file
-      rvunit = [file(rvfile, 'w'), file(outdir+obj+'.badrv'+fibsuf+'.dat', 'w')]
-      rvounit = [file(rvofile, 'w'), file(rvofile+'bad', 'w')]
-      rvcunit = [file(rvcfile, 'w'), file(rvcfile+'bad', 'w')]
-      crxunit = [file(crxfile, 'w'), file(crxfile+'bad', 'w')]
-      mlcunit = [file(mlcfile, 'w'), file(mlcfile+'bad', 'w')]
-      srvunit = [file(srvfile, 'w'), file(srvfile+'bad', 'w')]
-      mypfile = [file(rvofile+'err', 'w'), file(rvofile+'errbad', 'w')]
-      snrunit = [file(snrfile, 'w'), file(snrfile+'bad', 'w')]
-      chiunit = [file(chifile, 'w'), file(chifile+'bad', 'w')]
-      dlwunit = [file(dfwfile, 'w'), file(dfwfile+'bad', 'w')]
-      if meas_index:
-         halunit = [file(halfile, 'w'), file(halfile+'bad', 'w')]
-      if meas_CaIRT:
-         irtunit = [file(irtfile, 'w'), file(irtfile+'bad', 'w')]
-      if meas_NaD:
-         nadunit = [file(nadfile, 'w'), file(nadfile+'bad', 'w')]
+
+      create_line = lambda initial: outdir + obj + initial + fibsuf + '.dat'
+      rvfile = create_line('')
+      rvcfile = create_line('.rvc')
+      crxfile = create_line('.crx')
+      mlcfile = create_line('.mlc') # maximum likehood estimated RVCs and CRX
+      srvfile = create_line('.srv')# serval top-level file
+
+
+      rvunit = [rvfile, outdir+obj+'.badrv'+fibsuf+'.dat']
+      mypfile = [rvofile+'err', rvofile+'errbad']
+
       for n,sp in enumerate(spoklist):
-         if np.isnan(rvm[n]): sp.flag |= sflag.rvnan
+         if np.isnan(rvm[n]): 
+            sp.flag |= sflag.rvnan
          rvflag = int((sp.flag&(sflag.config+sflag.iod+sflag.rvnan)) > 0)
-         if rvflag: 'nan RV for file: '+sp.filename
-         print(sp.bjd, RVc[n], e_RVc[n], file=rvunit[int(rvflag or np.isnan(sp.drift))])
-         print(sp.bjd, RV[n], e_RV[n], rvm[n], rvmerr[n], " ".join(map(str,rv[n])), file=rvounit[rvflag])
-         print(sp.bjd, RV[n], e_RV[n], rvm[n], rvmerr[n], " ".join(map(str,e_rv[n])), file=mypfile[rvflag])
-         print(sp.bjd, RVc[n], e_RVc[n], sp.drift, sp.e_drift, RV[n], e_RV[n], sp.berv, sp.sa, file=rvcunit[rvflag])
-         print(sp.bjd, " ".join(list(map(str,tCRX[n])) + list(map(str,xo[n]))), file=crxunit[rvflag])
-         print(sp.bjd, RVc[n], e_RVc[n], CRX[n], e_CRX[n], dLW[n], e_dLW[n], file=srvunit[rvflag])
-         print(sp.bjd, mlRVc[n], e_mlRVc[n], mlCRX[n], e_mlCRX[n], dLW[n], e_dLW[n], file=mlcunit[rvflag])
-         print(sp.bjd, dLW[n], e_dLW[n], " ".join(map(str,dlw[n])), file=dlwunit[rvflag])
-         print(sp.bjd, np.nansum(snr[n]**2)**0.5, " ".join(map(str,snr[n])), file=snrunit[rvflag])
-         print(sp.bjd, " ".join(map(str,rchi[n])), file=chiunit[rvflag])
+         if rvflag:
+            'nan RV for file: '+sp.filename
+
+
+         create_print_file(rvunit[int(rvflag or np.isnan(sp.drift))], sp.bjd, RVc[n], e_RVc[n])
+         create_print_file(mypfile[rvflag], sp.bjd, RV[n], e_RV[n], rvm[n], rvmerr[n], " ".join(map(str,e_rv[n])))
+
+         file_app = '' if rvflag==0 else 'bad'
+
+         create_print_file(rvofile + file_app, sp.bjd, RV[n], e_RV[n], rvm[n], rvmerr[n], " ".join(map(str,rv[n])))
+         create_print_file(rvcfile + file_app, sp.bjd, RVc[n], e_RVc[n], sp.drift, sp.e_drift, RV[n], e_RV[n], sp.berv, sp.sa)
+         create_print_file(crxfile + file_app, sp.bjd, " ".join(list(map(str,tCRX[n])) + list(map(str,xo[n]))))
+         create_print_file(srvfile + file_app, sp.bjd, RVc[n], e_RVc[n], CRX[n], e_CRX[n], dLW[n], e_dLW[n])
+         create_print_file(mlcfile + file_app, sp.bjd, mlRVc[n], e_mlRVc[n], mlCRX[n], e_mlCRX[n], dLW[n], e_dLW[n])
+         create_print_file(dlwfile + file_app, sp.bjd, dLW[n], e_dLW[n], " ".join(map(str,dlw[n])))
+         create_print_file(snrfile + file_app, sp.bjd, np.nansum(snr[n]**2)**0.5, " ".join(map(str,snr[n])))
+         create_print_file(chifile + file_app, sp.bjd, " ".join(map(str,rchi[n])))
+
          if meas_index:
-            print(sp.bjd, " ".join(map(str, lineindex(halpha[n],harigh[n],haleft[n]) + halpha[n] + haleft[n] + harigh[n] + lineindex(cai[n],harigh[n],haleft[n]))), file=halunit[rvflag])  #,cah[n][0],cah[n][1]
+            create_print_file(halfile + file_app, sp.bjd, " ".join(map(str, lineindex(halpha[n],harigh[n],haleft[n]) + halpha[n] + haleft[n] + harigh[n] + lineindex(cai[n],harigh[n],haleft[n]))))  #,cah[n][0],cah[n][1]
          if meas_CaIRT:
-            print(sp.bjd, " ".join(map(str, lineindex(irt1[n], irt1a[n], irt1b[n]) + lineindex(irt2[n], irt2a[n], irt2b[n]) + lineindex(irt3[n], irt3a[n], irt3b[n]))), file=irtunit[rvflag])
+            create_print_file(irtfile + file_app, sp.bjd, " ".join(map(str, lineindex(irt1[n], irt1a[n], irt1b[n]) + lineindex(irt2[n], irt2a[n], irt2b[n]) + lineindex(irt3[n], irt3a[n], irt3b[n]))))
          if meas_NaD:
-            print(sp.bjd, " ".join(map(str, lineindex(nad1[n],nadr1[n],nadr2[n]) + lineindex(nad2[n],nadr2[n],nadr3[n]))), file=nadunit[rvflag])
-      for ifile in rvunit + rvounit + rvcunit + snrunit + chiunit + mypfile + crxunit + srvunit + mlcunit + dlwunit:
-         file.close(ifile)
+            create_print_file(nadfile + file_app, sp.bjd, " ".join(map(str, lineindex(nad1[n],nadr1[n],nadr2[n]) + lineindex(nad2[n],nadr2[n],nadr3[n]))))
+
 
       t2 = time.time() - t0
-      print()
-      print(nspec, 'spectra processed', rvfile+"  (total %s, compu %s)\n" %(minsec(t2), minsec(t2-t1)))
+     
+      logger.info( '{} spectra processed'.format(nspec) +  rvfile+"  (total %s, compu %s)\n" %(minsec(t2), minsec(t2-t1)))
 
    # end of iterate loop
 
    if not driftref and nspec>1:
       x = analyse_rv(obj, postiter=postiter, fibsuf=fibsuf, safemode=safemode)
-      if safemode<2: pause('TheEnd')
+      if safemode<2: 
+         pause('TheEnd')
 
-
-def arg2slice(arg):
-   """Convert string argument to a slice."""
-   # We want four cases for indexing: None, int, list of ints, slices.
-   # Use [] as default, so 'in' can be used.
-   if isinstance(arg, str):
-      arg = eval('np.s_['+arg+']')
-   return [arg] if isinstance(arg, int) else arg
 
 def flexdefault(arg):
    """Convert string argument to a slice."""
@@ -2166,8 +2139,9 @@ def flexdefault(arg):
       arg = eval('np.s_['+arg+']')
    return [arg] if isinstance(arg, int) else arg
 
-if __name__ == "__main__":
-   insts = [os.path.basename(i)[5:-3] for i in glob.glob(servalsrc+'inst_*.py')]
+def builder():
+   global co_excl, ckappa, outfmt, obj, pdb, targ, oset, coadd, coset, last, tpl, sp, fmod, reana, inst, fib, look, looki, lookt, lookp, lookssr, pmin, pmax, debug, pspllam, kapsig, nclip, atmfile, skyfile, atmwgt, omin, omax, ptmin, ptmax, driftref, deg, targrv, tplrv, o_excl
+   insts = [os.path.basename(i)[5:-3] for i in glob.glob(servalsrc+'instruments/inst_*.py')]
 
    # check first the instrument with preparsing
    preparser = argparse.ArgumentParser(add_help=False)
@@ -2176,116 +2150,41 @@ if __name__ == "__main__":
    preargs, _ =  preparser.parse_known_args()
 
    inst = preargs.inst
-   inst = importlib.import_module('inst_'+inst)
+   inst_mod = importlib.import_module('src.instruments.inst_'+inst)
 
    # instrument specific default
-   pmin = getattr(inst, 'pmin', 300)
-   pmax = getattr(inst, 'pmax', {'CARM_NIR':1800, 'ELODIE':900}.get(inst.name, 3800))
-   oset = getattr(inst, 'oset', {'HARPS':'10:71', 'HARPN':'10:', 'HPF':"[4,5,6,14,15,16,17,18]", 'CARM_VIS':'10:52', 'CARM_NIR': ':', 'FEROS':'10:', 'ELODIE':'2:'}.get(inst.name,':'))
+   pmin = getattr(inst_mod, 'pmin', 300)
+   pmax = getattr(inst_mod, 'pmax', {'CARM_NIR':1800, 'ELODIE':900}.get(inst_mod.name, 3800))
+   oset = getattr(inst_mod, 'oset', {'HARPS':'10:71', 'HARPN':'10:', 'HPF':"[4,5,6,14,15,16,17,18]", 'CARM_VIS':'10:52', 'CARM_NIR': ':', 'FEROS':'10:', 'ELODIE':'2:'}.get(inst_mod.name,':'))
 
    default = " (default: %(default)s)."
    epilog = """\
 
-   Default parameters are for """+inst.name+""".
+   Default parameters are for """+inst_mod.name+""".
 
    usage example:
    %(prog)s tag dir_or_filelist -targ gj699 -snmin 10 -oset 40:
    """
-   parser = argparse.ArgumentParser(description=description, epilog=epilog, add_help=False, formatter_class=argparse.RawTextHelpFormatter)
-   argopt = parser.add_argument   # function short cut
-   argopt('obj', help='Tag, output directory and file prefix (e.g. Object name).')
-   argopt('dir_or_inputlist', help='Directory name with reduced data fits/tar or a file listing the spectra (only suffixes .txt or .lis accepted).', nargs='?')
-   argopt('-targ', help='Target name requested in simbad for coordinates, proper motion, parallax and absolute RV.')
-   argopt('-targrade', help='Target coordinates: [ra|hh:mm:ss.sss de|de:mm:ss.sss].', nargs=2, default=[None,None])
-   argopt('-targpm', help='Target proper motion: pmra [mas/yr] pmde [mas/yr].', nargs=2, type=float, default=[0.0,0.0])
-   argopt('-targplx', help='Target parallax', type=float, default='nan')
-   argopt('-targrv', help='[km/s] Target RV guess (for index measures) [float, "drsspt", "drsmed", "targ", None, "auto"]. None => no measure; targ => from simbad, hdr; auto => first from headers, second from simbad))', default={'CARM_NIR':None, 'else':'auto'})
-   argopt('-atmmask', help='Telluric line mask ('' for no masking)'+default, default='auto', dest='atmfile')
-   argopt('-atmwgt', help='Downweighting factor for coadding in telluric regions'+default, type=float, default=None)
-   argopt('-atmspec', help='Telluric spectrum  (in fits format, e.g. lib/stdatmos_vis30a090rh0780p000t.fits) to correct spectra by simple division.'+default, type=str, default=None)
-   argopt('-brvref', help='Barycentric RV code reference', choices=brvrefs, type=str, default='WE')
-   argopt('-msklist', help='Ascii table with vacuum wavelengths to mask.', default='') # [flux and width]
-   argopt('-mskwd', help='[km/s] Broadening width for msklist.', type=float, default=4.)
-   argopt('-mskspec', help='Ascii 0-1 spectrum.'+default, default='')
-   argopt('-ccf',  help='mode ccf [with files]', nargs='?', const='th_mask_1kms.dat', type=str)
-   argopt('-ccfmode', help='type for ccf template', nargs='?', default='box',
-                      choices=['box', 'binless', 'gauss', 'trapeze'])
-   argopt('-coadd', help='coadd method'+default, default='post3',
-                   choices=['post3'])
-   argopt('-coset', help='index for order in coadding (default: oset)', type=arg2slice)
-   argopt('-co_excl', help='orders to exclude in coadding (default: o_excl)', type=arg2slice)
-   argopt('-ckappa', help='kappa sigma (or lower and upper) clip value in coadding. Zero values for no clipping'+default, nargs='+', type=float, default=(4.,4.))
-   argopt('-deg',  help='degree for background polynomial', type=int, default=3)
-   argopt('-distmax', help='[arcsec] Max distance telescope position from target coordinates.', nargs='?', type=float, const=30.)
-   argopt('-driftref', help='reference file for drift mode', type=str)
-   argopt('-fib',  help='fibre', choices=['', 'A', 'B', 'AB'], default='')
-   argopt('-inst', help='instrument '+default, default='HARPS', choices=insts)
-   argopt('-nset', '-iset', help='slice for file subset (e.g. 1:10, ::5)', default=':', type=arg2slice)
-   argopt('-kapsig', help='kappa sigma clip value'+default, type=float, default=3.0)
-   argopt('-last', help='use last template (-tpl <obj>/template.fits)', action='store_true')
-   argopt('-look', help='slice of orders to view the fit [:]', nargs='?', default=[], const=':', type=arg2slice)
-   argopt('-looki', help='list of indices to watch', nargs='*', choices=sorted(lines.keys()), default=[]) #, const=['Halpha'])
-   argopt('-lookt', help='slice of orders to view the coadd fit [:]', nargs='?', default=[], const=':', type=arg2slice)
-   argopt('-lookp', help='slice of orders to view the preRV fit [:]', nargs='?', default=[], const=':', type=arg2slice)
-   argopt('-lookssr', help='slice of orders to view the ssr function [:]', nargs='?', default=[], const=':', type=arg2slice)
-   argopt('-lookmlRV', help='chi2map and master', nargs='?', default=[], const=':', type=arg2slice)
-   argopt('-lookmlCRX', help='chi2map and CRX fit ', nargs='?', default=[], const=':', type=arg2slice)
-   argopt('-nclip', help='max. number of clipping iterations'+default, type=int, default=2)
-   argopt('-niter', help='number of RV iterations'+default, type=int, default=2)
-   argopt('-oset', help='index for order subset (e.g. 1:10, ::5)'+default, default=oset, type=arg2slice)
-   argopt('-o_excl', help='Orders to exclude (e.g. 1,10,3)', default={"CARM_NIR":"0,2,12,13,16,17,18,19,20,21,22,23,24,25,26,27,30,32,33,34,35,36,37,38,39,40,41,42,43,44,45,47,49,51,53,54,55", "else":[]}, type=arg2slice)
-   #argopt('-outmod', help='output the modelling results for each spectrum into a fits file',  choices=['ratio', 'HARPN', 'CARM_VIS', 'CARM_NIR', 'FEROS', 'FTS'])
-   argopt('-ofac', help='oversampling factor in coadding'+default, default=1., type=float)
-   argopt('-ofacauto', help='automatic knot spacing with BIC.', action='store_true')
-   argopt('-outchi', help='output of the chi2 map', nargs='?', const='_chi2map.fits')
-   argopt('-outfmt', help='output format of the fits file (default: None; const: fmod err res wave)', nargs='*', choices=['wave', 'waverest', 'err', 'fmod', 'res', 'spec', 'bpmap', 'ratio'], default=None)
-   argopt('-outsuf', help='output suffix', default='_mod.fits')
-   argopt('-pmin', help='Minimum pixel'+default, default=pmin, type=int)
-   argopt('-pmax', help='Maximum pixel'+default, default=pmax, type=int)
-   argopt('-pspline', help='pspline as coadd filter [smooth value]', nargs='?', const=0.0000001, dest='pspllam', type=float)
-   argopt('-pmu', help='analog to GP mean. Default no GP penalty. Without the mean in each order. Otherwise this value.', nargs='?', const=True, type=float)
-   argopt('-pe_mu', help='analog to GP mean deviation', default=5., type=float)
-   argopt('-reana', help='flag reanalyse only', action='store_true')
-   argopt('-rvwarn', help='[km/s] warning threshold in debug'+default, default=2., type=float)
-   argopt('-safemode', help='does not pause or stop, optional level 1  2 (reana)', nargs='?', type=int, const=1, default=False)
-   argopt('-skippre', help='Skip pre-RVs.', action='store_true')
-   argopt('-skymsk', help='Sky emission line mask ('' for no masking)'+default, default='auto', dest='skyfile')
-   argopt('-snmin', help='minimum S/N (considered as not bad and used in template building)'+default, default=10, type=float)
-   argopt('-snmax', help='maximum S/N (considered as not bad and used in template building)'+default, default=400, type=float)
-   argopt('-tfmt', help='output format of the template. nmap is a an estimate for the number of good data points for each knot. ddspec is the second derivative for cubic spline reconstruction. (default: spec sig wave)', nargs='*', choices=['spec', 'sig', 'wave', 'nmap', 'ddspec'], default=['spec', 'sig', 'wave'])
-   argopt('-tpl',  help="template filename or directory, if None or integer a template is created by coadding, where highest S/N spectrum or the filenr is used as start tpl for the pre-RVs", nargs='?')
-   argopt('-tplrv', help='[km/s] template RV. By default taken from the template header and set to 0 km/s for phoe tpl.[float, "tpl", "drsspt", "drsmed", "targ", None, "auto"]', default='auto')
-   argopt('-tset',  help="slice for file subset in template creation", default=':', type=arg2slice)
-   argopt('-verb', help='verbose', action='store_true')
-   v_lo, v_hi, v_step = -5.5, 5.6, 0.1
-   argopt('-vrange', help='[km/s] velocity grid around targrv (v_lo, v_hi, v_step)'+default, nargs='*', default=(v_lo, v_hi, v_step), type=float)
-   argopt('-vtfix', help='fix RV in template creation', action='store_true')
-   argopt('-wfix', help='fix wavelength solution', action='store_true')
-   argopt('-debug', help='debug flag', nargs='?', default=0, const=1)
-   argopt('-bp',   help='break points', nargs='*', type=int)
-   argopt('-pdb',  help='debug post_mortem', action='store_true')
-   argopt('-cprofile', help='profiling', action='store_true')
-   # use add_help=false and re-add with more arguments
-   argopt('-?', '-h', '-help', '--help',  help='show this help message and exit', action='help')
-   #parser.__dict__['_option_string_actions']['-h'].__dict__['option_strings'] += ['-?', '-help']
-
+   parser = build_parser(description, epilog, default, pmin, pmax, brvrefs, insts, oset)
 
    for i, arg in enumerate(sys.argv):   # allow to parse negative floats
       if len(arg) and arg[0]=='-' and arg[1].isdigit(): sys.argv[i] = ' ' + arg
-   print(sys.argv)
+  
 
-   args = parser.parse_args()
+   args = parser.parse_args() 
    globals().update(vars(args))
-
-   inst = importlib.import_module('inst_'+inst)
+   inst = importlib.import_module('src.instruments.inst_'+inst)
    Spectrum.brvref = brvref
-
    if tpl and tpl.isdigit(): tpl = int(tpl)
    oset = arg2slice(oset)
-   if isinstance(o_excl, dict): o_excl = arg2slice(o_excl[inst.name]) if inst.name in o_excl else []
-   if isinstance(targrv, dict): targrv = targrv[inst.name] if inst.name in targrv else targrv['else']
-   if coset is None: coset = oset
-   if co_excl is None: co_excl = o_excl
+   if isinstance(o_excl, dict): 
+      o_excl = arg2slice(o_excl[inst.name]) if inst.name in o_excl else []
+   if isinstance(targrv, dict): 
+      targrv = targrv[inst.name] if inst.name in targrv else targrv['else']
+   if coset is None: 
+      coset = oset
+   if co_excl is None: 
+      co_excl = o_excl
 
    if skippre or vtfix or last or isinstance(tpl, str) or driftref:
       niter -= 1
@@ -2336,7 +2235,7 @@ if __name__ == "__main__":
       os.system('rm -f .pdbrc')
 
    if not pdb:
-      sys.exit(serval())
+      serval()
    else:
       try:
          sys.exit(serval())

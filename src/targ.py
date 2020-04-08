@@ -1,7 +1,9 @@
 import urllib.request, urllib.parse, urllib.error, urllib.request, urllib.error, urllib.parse
 import os
 import sys
-
+import requests
+import logging 
+logger = logging.getLogger(__name__)
 # python version for the shell query
 # star=`sed 's/ /_/g; s/+/%2B/g' <<<$@`
 # echo %Info: encode name: $star >&2
@@ -32,11 +34,12 @@ def simbad_query(targ):
       'output console=off',
       'format object form1 "%OBJECT;%IDLIST(1);%COO(A D);%PM(A D [E]);%PLX;%RV"',
       'query '+targ]))
-   # urllib2.urlopen('http://simbad.u-strasbg.fr/simbad/sim-script', 'submit=submit+script&script=output+script%3Doff%0D%0Aoutput+console%3Doff%0D%0Aformat+object+form1+%22%25OBJECT+%3A+%25IDLIST%281%29+%3A+%25COO%28A+D%29+%25PM%28A+D+[E]%29+%25PLX\n%22%0D%0Aquery+gj699')
 
    site = urllib.request.urlopen('http://simbad.u-strasbg.fr/simbad/sim-script').geturl()
-   result = urllib.request.urlopen(site, 'submit=submit+script&script='+query).read()
 
+   result = requests.get(site + '?submit=submit+script&script='+query).text 
+
+   # TODO: add check for failing simbad query -> no data found or not valid hhtp response
    return result
 
 class Targ:
@@ -76,19 +79,20 @@ class Targ:
       '''Restore info from a file.'''
       self.line = None
       if os.path.exists(filename):
-         print("targ.py: restoring '%s' from %s" % (self.name, filename))
+         logger.info("targ.py: restoring '%s' from %s" % (self.name, filename))
          with open(filename) as f:
             self.line = f.read()
       return self.line
 
    def query(self):
-      print("targ.py: requesting simbad for '%s'" % self.name)
+      logger.info("targ.py: requesting simbad for '%s'" % self.name)
       self.line = simbad_query(self.name)
 
    def assignAttr(self, line):
       # parse the request
       line = self.line.split(';')[2:]        # ['gj699', "NAME Barnard's star", ' 17 57 ...]
       line = " ".join(line).split()
+
       self.ra = tuple(map(float,line[0:3]))  # rammss = (14.,29.,42.94)
       self.de = tuple(map(float,line[3:6]))  # demmss = (-62.,40.,46.16)
       self.pmra = float(line[6].replace("~","0."))             # pma = -3775.75
@@ -98,16 +102,15 @@ class Targ:
 
    def tofile(self, filename=None):
       if filename:
-         with (open(filename, 'w') if filename else sys.stdout) as f:
+         with (open(filename, 'a') if filename else sys.stdout) as f:
             print(self.line, file=f)
-         print('storing in', filename)
+         logger.info('storing in {}'.format(filename))
       else:
-         print(self.line)
+         logger.info(self.line)
 
 
 if __name__ == "__main__":
    name = 'gj699'
-   if len(sys.argv): name = sys.argv[1]
    targ = Targ(name)
    #targ = Targ('gj699', fromfilename='bla')
    print(targ.sa, targ.pmra, targ.pmde, targ.plx)

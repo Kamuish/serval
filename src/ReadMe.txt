@@ -17,7 +17,7 @@ obj.dlw.dat    Differential FWHM
 obj.drs.dat    Online radial velocity from fits header
 obj.fits       Template
 obj.halpha.dat Halpha line index (requires absolute RVs)
-obj.info.cvs   Infomation from fits file
+obj.info.dat   Infomation from fits file
 obj.mlc.dat    RV and CRX averages via maximum likelihood maps (experimental)
 obj.nad.dat    NaD line index (requires absolute RVs)
 obj.post.dat   post processed RVs with re-weighting of orders (experimental)
@@ -168,7 +168,7 @@ Column Format Units     Label     Explanations
 --------------------------------------------------------------------------------
 
 
-Description of file: obj.info.cvs
+Description of file: obj.info.dat
 --------------------------------------------------------------------------------
 Column Format Units     Label     Explanations
 --------------------------------------------------------------------------------

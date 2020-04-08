@@ -12,7 +12,7 @@ Currently, SERVAL can process data from CARM_VIS, CARM_NIR, ELODIE, HARPS, HARPN
 ## Install instruction
 
 Requirements:
-- python 2.7 + numpy, scipy, pyfits, astropy
+- python 3 + numpy, scipy, pyfits, astropy
 - gnuplot
 
 Setup the path:
@@ -33,14 +33,8 @@ Download SERVAL and required tools:
 mkdir $SERVALHOME
 cd $SERVALHOME
 git clone https://github.com/mzechmeister/serval.git
-git clone https://github.com/mzechmeister/python.git
 ```
 
-Make main files executable:
-```bash
-chmod u+x $SERVAL/src/serval.py
-chmod u+x $SERVAL/src/read_spec.py
-```
 
 Install barycorrpy:
 ```bash
@@ -87,8 +81,9 @@ serval --help
 A basic example is:
 ```bash
 mkdir data
-(cd data; git clone https://github.com/mzechmeister/HARPS.git)
-serval gj699 data/HARPS/gj699/ -inst HARPS -targ gj699
+(cd data; git clone https://github.com/mzechmeister/HARPS.git; cd..)
+
+python run.py gj699 data/HARPS/gj699/ -inst HARPS -targ gj699
 ```
 
 `-targ` requests the coordinates from simbad (otherwise RA and DEC from fits header is used)

@@ -6,6 +6,9 @@ import numpy as np
 
 einsum_bug = tuple(map(int, np.__version__.split("."))) < (1, 7, 0)
 # Bugs (due to np.einsum) for moments>1 and dim not () and np._version <= 1.6.1
+
+import logging 
+logger = logging.getLogger(__name__)
 """
       >>> np.__version__
       '1.6.1'
@@ -263,22 +266,28 @@ def wstd(y, e, axis=None, dim=(), ret_err=False):
    w[ind] = 1. / e[ind]**2
 
    d = list(range(y.ndim))
+
    if axis is not None:
-      if isinstance(axis, int): axis = (axis,)
+      if isinstance(axis, int): 
+         axis = (axis,)  # make sure that we can iterate through the axis
+
       axis = [d[a] for a in axis]    # ensure positive index
+
       dim = [i for i in d if i not in axis]   # create complement
 
-   if isinstance(dim, int): dim = (dim,)
+   if isinstance(dim, int): 
+      dim = (dim,)
+
    s = None
    if dim:
       dim = [d[a] for a in dim]   # positive index
       s = [slice(None) if (a in dim) else None for a in d]   # new shape (to broadcast mean)
 
    with np.errstate(divide='ignore'):
-      nsum = np.einsum(ind.astype(float), d, dim)
+      nsum = np.einsum(ind.astype(float), d, dim)   
       wsum = np.einsum(w, d, dim).astype(float)
       wmean =  np.einsum(w, d, y, d, dim) / wsum
-      res = y - (wmean[s] if s else wmean)       # centering data
+      res = y - (wmean[tuple(s)] if s else wmean)       # centering data
       #wstd1 = (np.einsum(w, d, res, d, res, d, dim)/wsum)**.5   # does not work in 1.6.1 due to einsum bug
       wstd1 = (np.einsum(w, d, res*res, d, dim) / wsum)**.5
       out = (wstd1, wmean)
@@ -607,8 +616,8 @@ def mlrms(y, e, s=0., verbose=False, ml=True, ret_mean=False):
       #print(-eps<rr-1<eps , s==0, wwrr, np.sum(w*w*(r**2-e**2)) , np.sum(w*w))
       lnL = -0.5 * np.sum(np.log(2*np.pi/w)) - 0.5 * chi2
 
-      if verbose: print('mean %.5g' %Y,' err', q, ' mlrms', wrms, lnL, ' rchi', chi2/n, rr, ' jit', s, s/wrms, wwrr,W)
-      #if verbose: print('s',s,'wwrr', wwrr, 'r',rr, 'W', W)
+      if verbose: 
+         logger.info('mean %.5g' %Y,' err', q, ' mlrms', wrms, lnL, ' rchi', chi2/n, rr, ' jit', s, s/wrms, wwrr,W)
       if -eps<rr-1<eps or s==0 or i>20:
          if ret_mean:
             return wrms, s, Y

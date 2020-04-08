@@ -79,5 +79,6 @@ def bjdbrv(jd_utc, ra, dec, obsname=None, lat=0., lon=0., elevation=None,
    return (bjd.value, brv[0]) if JDUTC.isscalar else (bjd, brv)
 
 
-# print bjdbrv(2457395.24563, 4.585590721,  44.02195596, 'ca', leap_update=False)
+if __name__ == '__main__':
+   print(bjdbrv(2457395.24563, 4.585590721,  44.02195596, 'ca', leap_update=False))
 

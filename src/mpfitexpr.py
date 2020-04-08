@@ -15,13 +15,15 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import mpfit 
+import src.mpfit as mpfit 
 import re
 import numpy
 import scipy
 
-import calcspec
+import src.calcspec as calcspec
 
+import logging 
+logger = logging.getLogger(__name__)
 
 def mpfitexpr(func, x, y, err , start_params, check=True, full_output=False, **kw):
 	"""Fit the used defined expression to the data
@@ -59,7 +61,7 @@ def mpfitexpr(func, x, y, err , start_params, check=True, full_output=False, **k
 		maxp = curp if curp > maxp else maxp	
 	if check:
 		if maxp == -1: 
-                        print(m.group)
+            logger.fatal(m.group)
 			raise Exception("wrong function format")
 		if maxp + 1 != len(start_params):
 			raise Exception("the length of the start_params != the length of the parameter verctor of the function")

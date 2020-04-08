@@ -4,24 +4,19 @@ import sys
 import argparse
 
 import numpy as np
-from gplot import *
-from pause import *
-from wstat import nanwsem, wmean, mlrms, wstd
+from src.utils.gplot import *
+from src.utils.pause import *
+from src.wstat import nanwsem, wmean, mlrms, wstd
 try:
-   import gls
+   import src.gls as gls
 except:
    print('Cannot import gls')
 
-try:
-   import astropy.io.fits as pyfits
-except:
-   try:
-      import pyfits
-   except:
-      print('Cannot import pyfits')
+import astropy.io.fits as pyfits
 
-import chi2map
-
+import src.chi2map as chi2map
+import logging 
+logger = logging.getLogger(__name__)
 __author__ = 'Mathias Zechmeister'
 __version__ = '2018-12-27'
 
@@ -52,7 +47,7 @@ class srv:
       self.pre = pre = obj+'/'+tag
       self.rms = np.nan
 
-      print(pre+'.rvc'+fibsuf+'.dat')
+      logger.info(pre+'.rvc'+fibsuf+'.dat')
       self.allrv = genfromtxt2d(pre+'.rvo'+fibsuf+'.dat')
       self.allerr = genfromtxt2d(pre+'.rvo'+fibsuf+'.daterr')
       sbjd = np.genfromtxt(pre+'.rvo'+fibsuf+'.dat', dtype=('|S33'), usecols=[0])   # as string
@@ -66,7 +61,7 @@ class srv:
       try:
          self.tpre = genfromtxt2d(pre+'.pre'+fibsuf+'.dat')
       except:
-         print(('warning: %s not found' % pre+'.pre'+fibsuf+'.dat'))
+         logger.warning(('warning: %s not found' % pre+'.pre'+fibsuf+'.dat'))
       self.dLW, self.e_dLW = self.dlw.T[[1,2]]
 
       # info includes also flagged files; exclude them based on unpairable bjd
@@ -74,8 +69,8 @@ class srv:
       bjd = np.atleast_1d(np.genfromtxt(pre+'.brv.dat', usecols=[0]))
 
       nn = [n for (n,t) in enumerate(bjd) if t in self.allrv[:,0]]
-      self.info = np.atleast_1d(np.genfromtxt(pre+'.info.cvs', dtype=('S'), usecols=[0], delimiter=';'))[nn]
-
+      self.info = np.atleast_1d(np.genfromtxt(pre+'.info.dat', dtype=('S'), usecols=[0], delimiter=';'))[nn]
+      self.info = np.char.decode(self.info)
       if not self.info.ndim:
          self.info = self.info[np.newaxis]
       info = " ".join(self.info)
@@ -191,8 +186,8 @@ class srv:
          chimap = chi2map.fromfile(name, self.RV[n]/1000., self.e_RV[n]/1000., self.rv[n]/1000., self.e_rv[n]/1000., self.orders, self.keytitle, self.rchi[n])
 
          chimap.plot()
-         print('mlRV', chimap.mlRV, chimap.e_mlRV)
-         print('RV  ', self.RV[n], self.e_RV[n])
+         logger.info('mlRV', chimap.mlRV, chimap.e_mlRV)
+         logger.info('RV  ', self.RV[n], self.e_RV[n])
 
          nn = pause('%i/%i %s %s'% (n+1, self.N, self.bjd[n], self.info[n]))
          try:
@@ -218,8 +213,8 @@ class srv:
          ind = self.orders
          xc = np.mean(x[ind])
          crxml, e_crxml = chimap.mlcrx(x, xc, ind)
-         print('crxml', crxml)
-         print('crx  ', self.tcrx[1,n], self.tcrx[2,n])
+         logger.info(f'crxml {crxml}')
+         logger.info(f'crx  {self.tcrx[1,n]} {self.tcrx[2,n]}')
          chimap.plot_fit()
 
          nn = pause('%i/%i %s %s'% (n+1, self.N, self.bjd[n], self.info[n]))
@@ -252,17 +247,17 @@ class srv:
       x = [row for i, row in enumerate(reader) if row["#Karmn\t\t"]== self.tag+'\t']
       if x:
          x = x[0]
-         print('#Karm', x["#Karmn\t\t"], ' | GJ'+x[" GJ\t\t"], ' | '+x[" Name\t\t\t"])
-         print('vsini [km/s]:', x[" vsini_kms-1\t"], "(%s)"%x[" Ref28\t"])
-         print('Prot [km/s]:', x[" P_d \t\t"], x[" eP_d\t\t"], "(%s)"%x[" Ref29\t"])
-         print('SpT :', x[" SpT\t\t"])
+         logger.info('#Karm', x["#Karmn\t\t"], ' | GJ'+x[" GJ\t\t"], ' | '+x[" Name\t\t\t"])
+         logger.info('vsini [km/s]:', x[" vsini_kms-1\t"], "(%s)"%x[" Ref28\t"])
+         logger.info('Prot [km/s]:', x[" P_d \t\t"], x[" eP_d\t\t"], "(%s)"%x[" Ref29\t"])
+         logger.info('SpT :', x[" SpT\t\t"])
 
    def targ(self):
      try:
       with open(self.pre+'.targ.cvs') as f:
          self.line = f.read()
       line = self.line.split(';')        # ['gj699', "NAME Barnard's star", ' 17 57 ...]
-      print(line[0],"; ", line[1])
+      logger.info(line[0],"; ", line[1])
       line = " ".join(line[2:]).split()
       self.ra = tuple(map(float,line[0:3]))  # rammss = (14.,29.,42.94)
       self.de = tuple(map(float,line[3:6]))  # demmss = (-62.,40.,46.16)
@@ -279,9 +274,9 @@ class srv:
       Periodanalysis of RV data.
       '''
       self.mlrms = mlrms(self.RVc, e=self.e_RVc)
-      print('N:     ', self.N)
-      print('T [d]:     ', self.bjd.max() - self.bjd.min())
-      print('wrms_RVc [m/s]:   %.2f\njitter [m/s]: %.2f' % self.mlrms)
+      logger.info('N:     ', self.N)
+      logger.info('T [d]:     ', self.bjd.max() - self.bjd.min())
+      logger.info('wrms_RVc [m/s]:   %.2f\njitter [m/s]: %.2f' % self.mlrms)
       #pause()
 
    def plotrvno(self):
@@ -290,7 +285,7 @@ class srv:
       crx, e_crx = self.tcrx[1:3]
       lam_o = np.exp(self.tcrx[6:].T)
       lnlv = np.log(self.tcrx[5])
-      print("use '$' to toggle between orders and wavelength")
+      logger.info("use '$' to toggle between orders and wavelength")
       n = 0
       while 0 <= n < self.N:
          gplot.key('tit "%s %s %s"'%(n+1, bjd[n], self.info[n]))
@@ -761,7 +756,7 @@ class srv:
 
       pause(obj)
 
-if __name__ == "__main__":
+def main():
    '''
    Example:
    '''

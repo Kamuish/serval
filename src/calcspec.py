@@ -1,11 +1,9 @@
 import numpy as np
 from scipy import interpolate
 
-from pause import pause
-import cubicSpline
-from read_spec import def_wlog
-from gplot import *
-
+from .utils import pause
+from .read_spec import def_wlog
+from .utils import gplot 
 
 c = 299792.4580   # [km/s]
 
@@ -75,8 +73,8 @@ def Calcspec(x2, v, *a, **kwargs):
    #fmod = spline_ev(dopshift(x2,v), globvar.tck)
    # static variables calcspec.tck calcspec.wcen must be preset
    if not kwargs.get('retpoly'):
-      fmod = kwargs.get('fmod', calcspec.tpl(dopshift(x2,v))) # parsed fmod or new
-   x2 = x2 - calcspec.wcen
+      fmod = kwargs.get('fmod', Calcspec.tpl(dopshift(x2,v))) # parsed fmod or new
+   x2 = x2 - Calcspec.wcen
    # Use a Horner schema to evaluate the polynom
    # poly = a_0 + a_1 x + a_2 x^2 + ... = a_0 + x (a_1 + x (a_2+ ...))
    poly = a[-1]

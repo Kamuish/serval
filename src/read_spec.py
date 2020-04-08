@@ -2,30 +2,27 @@
 __author__ = 'Mathias Zechmeister'
 __version__ = '2019-03-01'
 
-import datetime
 import glob
 import gzip
 import os
 import sys
 import tarfile
-import time
 import warnings
 from collections import namedtuple
 
+import time
+import astropy.io.fits as pyfits
 
-try:
-   import astropy.io.fits as pyfits
-except:
-   import pyfits
 #import fitsio
 import numpy as np
 
-import brv_we14idl
-import brv_we14html
-from pause import pause, stop
-from gplot import *
-import sunrise
+from src.utils import pause, stop
+import src.brv_we14py as brv_we14py
+import src.sunrise as sunrise
+from src.utils import FitsClass 
 
+import logging 
+logger = logging.getLogger(__name__)
 class nameddict(dict):
    """
    Examples
@@ -121,23 +118,22 @@ class Spectrum:
       self.utc = None
       self.ra = None
       self.de = None
-#      self.obs = type('specdata', (object,), {'lat': None, 'lon': None})
       self.obs = type('specdata', (object,), dict(lat=None, lon=None))
       self.airmass = np.nan
       self.inst = inst
       self.scan = self.inst.scan
       self.data = self.inst.data
 
-      if '.gz' in filename: pfits=True
+      if '.gz' in filename: 
+         pfits=True
 
       self.ccf = type('ccf',(), dict(rvc=np.nan, err_rvc=np.nan, bis=np.nan, fwhm=np.nan, contrast=np.nan, mask=0, header=0))
 
       # scan fits header for times, modes, snr, etc.
-      #read_spec(self, filename, inst=inst, pfits=pfits, verb=verb)
       self.scan(self, filename, pfits=pfits)
 
       if verb:
-         print("scan %s:"%self.instname, self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
+         logger.info("scan %s:" %self.instname + ' '.join([str(i) for i in [self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode]]))
 
       if inst.name != self.instname:
          pause('WARNING:', filename, 'from', self.inst, ', but mode is', inst)
@@ -147,7 +143,6 @@ class Spectrum:
       # start and end computed only for WE and WEhtml
       self.bjd_sart, self.berv_start = np.nan, np.nan
       self.bjd_end, self.berv_end = np.nan, np.nan
-
       if targ and targ.name == 'cal':
          self.bjd, self.berv = self.drsbjd, 0.
       elif targ and targ.ra:  # unique coordinates
@@ -170,7 +165,6 @@ class Spectrum:
             obsloc = inst.obsloc if hasattr(inst, 'obsloc') else {}
             if self.brvref == 'WE':
                # pure python version
-               import brv_we14py
                #self.bjd, self.berv = brv_we14py.bjdbrv(jd_utc=jd_utc[0], ra=ra, dec=de, obsname=obsname, pmra=targ.pmra, pmdec=targ.pmde, parallax=0., rv=0., zmeas=[0])
                (_, self.bjd, _), (self.berv_start, self.berv, self.berv_end) = brv_we14py.bjdbrv(jd_utc=jd_utcs, ra=ra, dec=de, obsname=obsname, pmra=targ.pmra, pmdec=targ.pmde, parallax=0., rv=0., zmeas=[0], **obsloc)
             elif self.brvref == 'WEhtml':
@@ -178,7 +172,7 @@ class Spectrum:
                #self.berv = brv_we14html.bvc(jd_utc=jd_utc, ra="%s+%s+%s"%targ.ra, dec="%s+%s+%s"%targ.de, obsname='ca', pmra=targ.pmra, pmdec=targ.pmde, parallax=0., rv=0., zmeas=[0], raunits='hours', deunits='degrees')[0]
                self.berv_start, self.berv, self.berv_end = brv_we14html.bvc(jd_utc=jd_utcs, ra="%s+%s+%s"%targ.ra, dec="%s+%s+%s"%targ.de, obsname='ca', pmra=targ.pmra, pmdec=targ.pmde, parallax=0., rv=0., zmeas=[0], raunits='hours', deunits='degrees')
             else:
-               self.bjd, self.berv = brv_we14idl.bjdbrv(jd_utc=jd_utc[0], ra=ra, dec=de, obsname=obsname, pmra=targ.pmra, pmdec=targ.pmde, parallax=0., rv=0., zmeas=[0])
+               self.bjd, self.berv = bjdbrv(jd_utc=jd_utc[0], ra=ra, dec=de, obsname=obsname, pmra=targ.pmra, pmdec=targ.pmde, parallax=0., rv=0., zmeas=[0])
 
             self.berv /= 1000.   # m/s to km/s
          if self.brvref == 'DRS':
@@ -187,7 +181,6 @@ class Spectrum:
       else:
          self.bjd, self.berv = self.drsbjd, self.drsberv
          self.brvref = self.drsname
-
       if self.fib == 'B':
          self.berv = np.nan
          self.drsberv = np.nan
@@ -195,10 +188,7 @@ class Spectrum:
       self.header['HIERARCH SERVAL BREF'] = (self.brvref, 'Barycentric code')
       self.header['HIERARCH SERVAL BJD'] = (self.bjd, 'Barycentric Julian Day')
       self.header['HIERARCH SERVAL BERV'] = (self.berv, '[km/s] Barycentric correction')
-      #self.header['HIERARCH SERVAL RA'] = (targ.ra[0], 'Barycentric code')
-      #self.header['HIERARCH SERVAL DE'] = (targ.ra[0], 'Barycentric code')
-      #self.header['HIERARCH SERVAL PMRA'] = (targ.ra[0], 'Barycentric code')
-      #self.header['HIERARCH SERVAL PMDE'] = (targ.ra[0], 'Barycentric code')
+
 
       if self.utc:
          date = self.utc.year, self.utc.month, self.utc.day
@@ -212,10 +202,8 @@ class Spectrum:
                  (ut < utend < sunris < sunset))      # |UT__R********S_|
          #if not dark:
             #self.flag |= sflag.daytime
-
       if orders is not None:
          self.read_data(orders=orders, wlog=wlog)
-#         self.data(orders=orders, wlog=wlog)
 
    def __get_item__(self, order):
       # spectrum needs to be dict like
@@ -227,7 +215,6 @@ class Spectrum:
       if self.w:
          w, f, e, b = self.w[o], self.f[o], self.e[o], self.bpmap[o]
       else:
-#         w, f, e, b = read_spec(self, self.filename, inst=self.inst, orders=orders, **kwargs)
          w, f, e, b = self.data(self, orders=orders, **kwargs)
          w = np.log(w) if wlog else w.astype(np.float)
          f = f.astype(float)
@@ -249,379 +236,7 @@ class Inst:
    def __init__(self, inst):
       pass
 
-def read_spec(self, s, inst, plot=False, **kwargs):
-   #print s, inst
-   sp = inst.read(self, s, **kwargs)
-   return sp
-
-   if '.tar' in s: s = file_from_tar(s, inst=inst, fib=self.fib, **kwargs)
-   if 'HARP' in inst:  sp = read_harps(self, s, inst=inst, **kwargs)
-   elif inst == 'CARM_VIS':  sp = read_carm_vis(self, s, **kwargs)
-   elif inst == 'CARM_NIR':  sp = read_carm_nir(self, s, **kwargs)
-   elif inst == 'FEROS': sp = read_feros(self, s, **kwargs)
-   elif inst == 'FTS': sp = read_fts(self, s, **kwargs)
-   elif inst == 'HPF': sp = read_hpf(self, s, **kwargs)
-   else:
-      return None
-   #if hasattr(s, 'close'):
-      #s.close()
-
-   if plot:
-      gplot.xlabel("'wavelength'").ylabel("'intensity'")
-      for o in range(len(sp.w)):
-         gplot(sp.w[o], sp.f[o], " w lp t 'order %i'"%o)
-         pause(o)
-   return sp
-
-def write_template(filename, flux, wave, header=None, hdrref=None, clobber=False):
-   if not header and hdrref: header = pyfits.getheader(hdrref)
-   hdu = pyfits.PrimaryHDU(header=header)
-   warnings.resetwarnings() # supress nasty overwrite warning http://pythonhosted.org/pyfits/users_guide/users_misc.html
-   warnings.filterwarnings('ignore', category=UserWarning, append=True)
-   hdu.writeto(filename, clobber=clobber, output_verify='fix')
-   warnings.resetwarnings()
-   warnings.filterwarnings('always', category=UserWarning, append=True)
-
-   if isinstance(flux, np.ndarray):
-      pyfits.append(filename, flux)
-      pyfits.append(filename, wave)
-   else:
-      # pad arrays with zero to common size
-      maxpix = max(arr.size for arr in flux if isinstance(arr, np.ndarray))
-      flux_new = np.zeros((len(flux), maxpix))
-      wave_new = np.zeros((len(flux), maxpix))
-      for o,arr in enumerate(flux):
-          if isinstance(arr, np.ndarray): flux_new[o,:len(arr)] = arr
-      for o,arr in enumerate(wave):
-          if isinstance(arr, np.ndarray): wave_new[o,:len(arr)] = arr
-      pyfits.append(filename, flux_new)
-      pyfits.append(filename, wave_new)
-
-   pyfits.setval(filename, 'EXTNAME', value='SPEC', ext=1)
-   pyfits.setval(filename, 'EXTNAME', value='WAVE', ext=2)
-   #fitsio.write(filename, flux)
-
-def write_res(filename, datas, extnames, header='', hdrref=None, clobber=False):
-   if not header and hdrref: header = pyfits.getheader(hdrref)
-   hdu = pyfits.PrimaryHDU(header=header)
-   warnings.resetwarnings() # supress nasty overwrite warning http://pythonhosted.org/pyfits/users_guide/users_misc.html
-   warnings.filterwarnings('ignore', category=UserWarning, append=True)
-   hdu.writeto(filename, clobber=clobber, output_verify='fix')
-   warnings.resetwarnings()
-   warnings.filterwarnings('always', category=UserWarning, append=True)
-
-   for i,extname in enumerate(extnames):
-     data = datas[extname]
-     if isinstance(data, np.ndarray):
-        pyfits.append(filename, data)
-     else:
-        1/0
-
-     pyfits.setval(filename, 'EXTNAME', value=extname, ext=i+1)
-   #fitsio.write(filename, flux)
-
-def write_fits(filename, data, header='', hdrref=None, clobber=True):
-   if not header and hdrref: header = pyfits.getheader(hdrref)
-   warnings.resetwarnings() # supress nasty overwrite warning http://pythonhosted.org/pyfits/users_guide/users_misc.html
-   warnings.filterwarnings('ignore', category=UserWarning, append=True)
-   pyfits.writeto(filename, data, header, clobber=clobber, output_verify='fix')
-   warnings.resetwarnings()
-   warnings.filterwarnings('always', category=UserWarning, append=True)
-
-def read_template(filename):
-   hdu = pyfits.open(filename)
-   #return hdu[1].data, hdu[0].data  # wave, flux
-   return hdu[2].data, hdu[1].data, hdu[0].header  # wave, flux
-
-def read_harps_ccf(s):
-   ccf = namedtuple('ccf', 'rvc err_rvc bis fwhm contrast mask')
-   tar = None
-   if ".tar" in s:
-      tar = tarfile.open(s)
-      extr = None
-      for member in tar.getmembers():
-         if 'A.fits' in member.name:
-            if '_ccf_' in member.name and not extr: extr = member
-            if '_bis_' in member.name: extr = member   # prefer bis
-      if not extr: return ccf(0,0,0,0,0,0)
-      s = tar.extractfile(extr)
-   else:
-      s = glob.glob(s.replace("_e2ds","_bis_*")) + glob.glob(s.replace("_e2ds","_ccf_*"))
-      if s: s = s[0]   # prefer bis
-      else: return ccf(*[np.nan]*6)
-      #else: return ccf(0,0,0,0,0,0)
-   # ccf = namedtuple('ccf', 'rvc err_rvc bis fwhm contrast mask header')
-   HIERARCH = 'HIERARCH '
-
-   if 1:
-      hdr = imhead(s, HIERARCH+'ESO DRS CCF RVC', HIERARCH+'ESO DRS CCF CONTRAST', HIERARCH+'ESO DRS CCF FWHM', HIERARCH+'ESO DRS CCF MASK', HIERARCH+'ESO DRS DVRMS',HIERARCH+'ESO DRS BIS SPAN')
-   elif 0:
-      if ".tar" in s:
-         s = tar.extractfile(extr)
-         hdulist = pyfits.open(s)
-         hdr = hdulist[0].header
-         tar.close()
-         #hdr = pyfits.getheader(s) # doesn't work for file like object?
-   else:
-      tar.extract(extr, path='tarfits')
-      os.system('mv tarfits/* tmp.fits ')
-      data,hdr = fitsio.read('tmp.fits',header=1)
-      HIERARCH = ''
-
-   if tar:
-      tar.close()
-
-   rvc = hdr[HIERARCH+'ESO DRS CCF RVC']   # [km/s]
-   contrast = hdr.get(HIERARCH+'ESO DRS CCF CONTRAST', np.nan)
-   fwhm = hdr[HIERARCH+'ESO DRS CCF FWHM']
-   mask = hdr[HIERARCH+'ESO DRS CCF MASK']
-   e_rvc = hdr.get(HIERARCH+'ESO DRS DVRMS', np.nan) / 1000.   # [km/s]
-   bis = hdr.get(HIERARCH+'ESO DRS BIS SPAN', np.nan)
-   return ccf(rvc, e_rvc, bis, fwhm, contrast, mask)
-
-
-def read_csfs_vis(self, s, orders=None, pfits=True, verb=True):
-   """
-   SYNTAX: read_carm_vis(filename)
-   OUTPUT: namedtuple('spectrum', 'w f berv bjd blaze drift timeid sn55 ')
-           w    - wavelength
-           f    - flux
-           berv - Barycentric Earth Radial Velocity
-           bjd  - Barycentric Julian Day
-           blaze - Blaze filename
-           drift - Used RV Drift
-           sn55  - S_N order center55
-   """
-   HIERARCH = 'HIERARCH '
-   hdulist = pyfits.open(s) # slow 30 ms
-   if orders is None:
-      hdr = hdulist[0].header
-      self.header = hdr
-      self.inst = hdr['INSTRUME'][0:4]+'_VIS'
-   #data,hdr = fitsio.read(s,header=True)
-
-      self.drsberv = -hdr.get('FIBARV',0)/1000.
-      self.drsberv = -hdr.get(HIERARCH+'CAHA SIMU RVA',0)/1000.
-      self.drsberv = hdr.get('E_BERV',0)  # @Ansgar simulation
-      #self.drsbjd = hdr.get('MJD-OBS',0)
-      self.drsberv = 0
-      self.drsbjd = hdr.get('OBS_DAYS',0)
-      self.drsbjd = hdr.get('E_BJD',0)
-
-      self.sn55 = hdr.get(HIERARCH+'CARACAL FOX SNR 36', np.nan)
-      self.blaze = '' #hdr[HIERARCH+'ESO DRS BLAZE FILE']
-      self.drift = hdr.get(HIERARCH+'CARACAL DRIFT RV', np.nan)
-      self.fox = HIERARCH+'CARACAL FOX XWD' in hdr
-
-   #fileid = str(hdr.ascardlist()['MJD-OBS'])     # read the comment
-      self.fileid = hdr.get('FILENAME',0) #fileid[fileid.index('(')+1:fileid.index(')')]
-      self.calmode = hdr.get('SOURCE',0) #.split("_")[3] #fileid[fileid.index('(')+1:fileid.index(')')]
-   #calmodedict = {'objcal':'OBJ,CAL','objsky':'OBJ,SKY'}
-   #if calmode in calmodedict: calmode = calmodedict[calmode]
-      self.timeid = self.fileid
-      self.exptime = hdr['EXPTIME']
-
-   if orders is not None:  # read order data
-      f = hdulist['SPEC'].section[orders]
-      bpmap = np.isnan(f).astype(int)            # flag 1 for nan
-      w =  hdulist['WAVE'].section[orders]
-      e = hdulist['SIG'].section[orders]
-      if self.fox:
-         e *= 100000.
-         f *= 100000.
-      else:
-         e = 1000+0*f
-         bpmap[self.f>300000] |= flag.sat
-         # flag neighbours
-         bpmap[:,1:] |= flag.sat * (f>300000)[:,:-1]
-         bpmap[:,:-1] |= flag.sat * (f>300000)[:,1:]
-      bpmap[f < -3*e] |= flag.neg
-      bpmap[e==0] |= flag.nan
-      return w, f, e, bpmap
-
-   if verb: print("read_carm_vis:", self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
-
-
-def read_feros(self, s, orders=None, pfits=True, verb=True):
-   """
-   SYNTAX: read_feros(filename)
-   OUTPUT: namedtuple('spectrum', 'w f berv bjd blaze drift timeid sn55 ')
-           w    - wavelength
-           f    - flux
-           berv - Barycentric Earth Radial Velocity
-           bjd  - Barycentric Julian Day
-           blaze - Blaze filename
-           drift - Used RV Drift
-           sn55  - S_N order center55
-
-   """
-   hdulist = pyfits.open(s) # slow 30 ms
-   if orders is None or self.header is None:
-      HIERARCH = 'HIERARCH '
-      hdr = hdulist[0].header
-      self.inst = hdr['INSTRUME']
-
-      #data,hdr = fitsio.read(s,header=True)
-      indberv = [i for i, s in enumerate(hdr.values()) if 'BARY_CORR' in str(s)][0] + 1
-      self.drsberv = float(hdr[indberv])
-      # FEROS drsberv are wrong and already applied to the spectra
-      # remove it from the spectrum
-      self.drsbjd = hdr.get('MJD-OBS',np.nan) #hdr.get(HIERARCH+'ESO DRS BJD',0)
-      if self.drsbjd: self.drsbjd += 2400000.5
-      if self.fib=='B': self.drsberv = np.nan
-
-      self.tmmean = 0.5 # hdr['HIERARCH ESO INS DET1 TMMEAN'] not available
-      self.exptime = hdr['EXPTIME']
-      self.dateobs = hdr['ARCFILE'][6:-5] # hdr['DATE-OBS']
-      # FEROS has no S/N estimates; judge with airmass and seeing
-      #print hdr['DATASUM'], self.exptime, hdr['HIERARCH ESO TEL AIRM START'], hdr['HIERARCH ESO TEL AMBI FWHM START']
-      seefhwm = hdr['HIERARCH ESO TEL AMBI FWHM START']  # if -1 assume 3.0
-      self.sn55 = 100 / hdr['HIERARCH ESO TEL AIRM START'] / (seefhwm if seefhwm>0 else 3.0)
-      self.blaze = '' #hdr[HIERARCH+'ESO DRS BLAZE FILE']
-      self.drift = hdr.get(HIERARCH+'ESO DRS DRIFT RV USED', np.nan)
-
-      #fileid = str(hdr.ascardlist()['MJD-OBS'])     # read the comment
-      fileid = hdr.get('ARCFILE',0) #fileid[fileid.index('(')+1:fileid.index(')')]
-      self.calmode = hdr.get('ORIGFILE',0).split("_")[3] #fileid[fileid.index('(')+1:fileid.index(')')]
-      calmodedict = {'objcal': 'OBJ,ThAr', 'objsky': 'OBJ,SKY'}
-      if self.calmode in calmodedict: self.calmode = calmodedict[self.calmode]
-      self.timeid = self.dateobs #fileid
-
-      if self.calmode != 'OBJ,ThAr' and hdr.get('FILENAME') != 'rebinned1.bdf': self.flag = 1
-      #  hdr['OBJECT'] = hdr.get('OBJECT','FOX')
-      self.header = hdr
-   hdr = self.header
-   if verb: print("read_feros:", self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
-
-   if orders is not None:  # read order data
-      if self.filename.endswith('.mt'):
-         realname = os.path.realpath(self.filename)
-         data = [pyfits.getdata(realname.replace('01.mt','%02i.mt'%(o+1))) for o in range(39)]
-         fsize = max([len(fo) for fo in data])
-         f = np.zeros((39,fsize)).astype(float)
-         for o,fo in enumerate(data): f[o,0:len(fo)] = fo* 100000.
-      else:
-         f = hdulist[0].data * 100000.
-      bpmap = np.isnan(f).astype(int)  # flag 1 for nan
-      bpmap[f < 0.0001] |= flag.neg    # flag 2 for zero and negative flux
-
-      # print " applying wavelength solution ", file
-      CRPIX1 = -49.
-      CDELT1  = 0.03
-      w = 0 * f.astype(float)
-      his = list(hdr.get_history())
-      wind = [i for i,x in enumerate(his) if 'WSTART' in x][0]
-      wstart = ' '.join(his[wind+1:wind+14])
-      wstart = np.fromstring(wstart, dtype=float, sep=' ')
-      for i in range(39):
-         #wstart = 3.527250000000000E+03
-         w[i] = wstart[i] + CDELT1*np.arange(w[0].size)
-      c = 299792.4580  # [km/s]
-      w *= (1 - self.drsberv/c)
-      w = airtovac(w)
-         #from gplot import  *; gplot(lam[i],data[i])
-      #pause()
-         #lam = hdulist['WAVE'].data
-      e = np.ones_like(f) * 100.
-      e[bpmap==0] = 1.0*10. #np.sqrt(data[bpmap==0]) # slow 50 ms
-
-      if self.fib!='B':  # filter for cosmics
-         look = (None,)
-         kap = 4.5
-         for o in range(39):
-            idx, = np.where(bpmap[o]==0)
-            if 1:
-               # using a robust 4.5 68 percentile clipping
-               #hh = np.argsort(f[o][idx])
-               #ii = hh[len(hh)*0.98:]  # reject 2%
-               p1sig = (100-68.2) / 2
-               p16, p50, p84 = np.percentile(f[o][idx],(p1sig,50,100-p1sig))
-               rbsig = (p84-p16) / 2 # robust five sigma
-               ii = idx[f[o][idx] > p50+kap*rbsig]
-               if o in look:
-                  gplot(w[o],f[o],',',w[o][idx],f[o][idx],',',w[o][ii],f[o][ii], ",%f, %f, %f, %f"%(p16, p50, p84, p50+kap*rbsig))
-            if 0:
-               # moving robust 4.5sigma clipping
-               csum = np.cumsum(f[o][idx])
-               mvmean = (csum[400:] - csum[:-400]) / 400
-               #mvmean = np.lib.pad(mvmean, (400,400), 'edge')
-               mvmean = np.concatenate((np.zeros(200) + mvmean[0], mvmean,np.zeros(200) + mvmean[-1]))
-               csum = np.cumsum(abs(f[o][idx]-mvmean))
-               mvrbsig = (csum[400:] - csum[:-400]) / 400
-               mvrbsig = np.concatenate((np.zeros(200) + mvrbsig[0], mvrbsig,np.zeros(200) + mvrbsig[-1]))
-               ii = idx[f[o][idx] > mvmean+kap*mvrbsig]
-               if o in look:
-                  gplot(w[o],f[o],',',w[o][idx],f[o][idx],mvmean,mvmean+kap*mvrbsig,',"" us 1:3, "" us 1:4,',w[o][ii],sf[o][ii])
-            bpmap[o][ii] |= flag_cosm
-            if o in look:
-               pause(o)
-      hdulist.close()
-      return w, f, e, bpmap
-   hdulist.close()
-
-
-def read_fts(self,s, orders=None, filename=None, pfits=True, verb=True):
-   """
-   SYNTAX: read_fts(filename)
-   OUTPUT: namedtuple('spectrum', 'w f berv bjd blaze drift timeid sn55 ')
-           w    - wavelength
-           f    - flux
-           berv - Barycentric Earth Radial Velocity
-           bjd  - Barycentric Julian Day
-           blaze - Blaze filename
-           drift - Used RV Drift
-           sn55  - S_N order center55
-
-   """
-   HIERARCH = 'HIERARCH '
-   if orders is None:
-      hdr = {'OBJECT': 'Iod'}
-      self.header = hdr
-      self.inst = 'FTS'
-      self.drsberv = hdr.get('bla', 0)
-      self.fileid = os.path.basename(s) #fileid[fileid.index('(')+1:fileid.index(')')]
-      self.drsbjd = 0.0 if '.fits' in s else float(self.fileid.split('.')[1].split('_')[0])
-      with open('/home/data1/fts/Lemke/2015_I/2015-01-29/DPT/parameter_Q_Si_I2_001.txt') as finfo:
-         for line in finfo:
-            if self.fileid.replace('_ScSm.txt','\t') in line:
-               line = line.split(); date=line[2].split('/'); time=line[3].split(':')
-               #from subprocess import call
-               #call(['bash','date2jd', date[2], date[1], date[0]] +time)
-               from subprocess import Popen, PIPE
-               p = Popen(['bash','date2jd', date[2], date[1], date[0]] +time, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-               output, err = p.communicate()
-               rc = p.returncode
-               self.drsbjd = float(output)
-      self.sn55 = 10
-      self.blaze = '' #hdr[HIERARCH+'ESO DRS BLAZE FILE']
-      self.drift = hdr.get(HIERARCH+'ESO DRS DRIFT RV USED', np.nan)
-      self.calmode = hdr.get('SOURCE', 0) #.split("_")[3] #fileid[fileid.index('(')+1:fileid.index(')')]
-      self.timeid = self.fileid
-      self.exptime = 0
-   if verb: print("read_fts:", self.timeid, self.header['OBJECT'], self.drsbjd, self.sn55, self.drsberv, self.drift, self.flag, self.calmode)
-
-   if orders is not None:  # read order data
-      nord = 70    # some arbitary shaping to 70x10000
-      nw = 700000
-      if '.fits' in s:
-         hdulist = pyfits.open(s)
-         w, f = hdulist[0].data[:,1600000:]
-      else:
-         #w, f = np.loadtxt(s, skiprows=1600000, unpack=True) ; too slow 45s vs 5.2s
-         data = np.fromfile(s, sep=' ', count=2*(1600000+nw))[2*1600000:]
-         w = 1e7 / data[::2]
-         f = data[1::2]
-
-      w = 10 * w[:nw].reshape(nord,nw/nord)
-      f = f[:nw].reshape(nord,nw/nord)*4000
-      bpmap = np.isnan(f).astype(int)            # flag 1 for nan
-
-      xmax = w.size
-      e = np.ones_like(w)
-      return w, f, e, bpmap
-
-
-tarmode = 5
+tarmode = 5   # FIXME: temporary chaging the TARMODE
 # 0  - extract physically (works for all, slow)
 #      tarfits directory not cleaned
 # 1  - treat tarfile as normal file which has offset, seek() and open()
@@ -631,7 +246,7 @@ tarmode = 5
 # 5  - use tar.extractfile, works with pyfits, doesn't work with myfits (np.fromfile accepts only real files and files object, not tar)
 # 6  - open as normal file, does not work
 
-def file_from_tar(s, inst='HARPS', fib=None, **kwargs):
+def file_from_tar(file_name, inst='HARPS', fib=None, **kwargs):
    """
    Returns a file-like object.
    Reading header and data should use the same fits reader
@@ -643,9 +258,12 @@ def file_from_tar(s, inst='HARPS', fib=None, **kwargs):
    """
    pat = {'HARPS': {'A': '_e2ds_A.fits', 'B': '_e2ds_B.fits'}[fib],
           'FEROS': {'A': '.1061.fits', 'B': '.1062.fits'}[fib]} [inst]
-   tar = tarfile.open(s)
+
+   keep_open = False
+   tar =  tarfile.open(file_name)
    for member in tar.getmembers():
-       if pat in member.name: extr = member
+      if pat in member.name: 
+         extr = member
 
    if tarmode in (1,2,3) and kwargs.get('pfits') == 2:
       # We could use tar.extractfile(extr) but this requires reopen the tar file
@@ -657,19 +275,26 @@ def file_from_tar(s, inst='HARPS', fib=None, **kwargs):
    elif tarmode in (0,5) and kwargs.get('pfits') == 2:
       # Open the tar file as a normal file and store the position and size of the fits file
       # as attributes.
-      s = type('tarobj', (file,), {})(s, mode='rb')   # since class, because the in the buildin file class we cannot set new attributes
-      s.mem = extr.name
-      s.offset_data = extr.offset_data
-      s.size = extr.size
-      tar.close()
+
+      s = FitsClass(filepath = file_name, 
+                  offset_data = extr.offset_data,
+                  name = extr.name,
+                  size=extr.size,
+                  mode = 1
+      )
+      # actually creating those new properties
+
    elif tarmode == 5:
       # does not work with np.fromfile
-      s = tar.extractfile(extr)
+      extracted_member  = tar.extractfile(extr)
+      s = FitsClass( filepath = extracted_member, name = extr.name, mode = 2, **{'tar_file': tar})
+      keep_open = True
    else:
-      print('extract')
       tar.extract(extr, path='tarfits')   # extract physically
       s = 'tarfits/'+extr.name
-   #tar.close()
+   
+   if not keep_open:
+      tar.close()
    return s
 
 
@@ -699,19 +324,19 @@ class imhead(dict):
       hdr = {}
       self.comments = {}
       extpos = kwargs.get('extpos', 0)  # position of the extension with the fitsfile
-      count = kwargs.get('count', -1)
+      count = kwargs.get('count', -1) 
+
       #if not len(args):
          #args = ''   # read all
          #stop( '\n\nimhead: there must be are args; reading all keys not yet supported\n')
       args += ('NAXIS', 'BITPIX')
       NR = 0
-
-      if isinstance(s, tarfile.TarInfo):
+      if isinstance(s, (tarfile.TarInfo, tarfile.ExFileObject)):
          if tarmode==1:
             fi = open(s.mother)
          if tarmode==3:
             fi = tarfile.open(s.mother).extractfile(s)
-      elif isinstance(s, (tarfile.ExFileObject, file)):   # tarmode == 5,6
+      elif isinstance(s, (FitsClass)):   # tarmode == 5,6  # FIXME: see if it's using the FITSClass; previously checked for tarfiles and file
          fi = s
       elif s.endswith('.gz'):   # normal file
          fi = gzip.open(s)
@@ -722,24 +347,36 @@ class imhead(dict):
          extpos = s.offset_data
       #pause()
 
-      #with open(s) as fi:
-      if 1:
-         fi.seek(extpos)
-         for card in iter(lambda:fi.read(80), ''):   # read in 80 byte blocks
-            NR += 1
-            if card.startswith('END '): break
-            if card.startswith(args):
-               #key, val, comment = card.replace("= ","/ ",1).split("/ ")
-               key, val, comment = card.replace(' /','= ',1).split('= ')   # does not parse HARPN.2012-09-03T05-29-56.622 "HIERARCH TNG OBS TARG NAME = 'M1'/ no comment"
-               # key, val, comment = card.replace('/','= ',1).split('= ')
-               hdr[key.strip()] = val.strip("' ") if "'" in val else float(val) if '.' in val else int(val)
-               #hdr[key.strip()] = val.strip("' ") if any(i in val for i in "'TF") else float(val) if '.' in val and not 'NaN.' in val else int(val) if val.strip(" -").isdigit() else val
-               self.comments[key.strip()] = comment
-               count -= 1
-               if count==0: args = () # all found; do not check cards anymore; only read to end
-         #NR = (fi.tell()-extpos) / 80
+      
+      if isinstance(fi, FitsClass):  # FIXME: temporary solution to this problem; do the other file types work properly? 
 
-      hsz = 2880 * ((NR-1)/36 + 1)
+         args = tuple((str.encode(i) for i in args))
+         with fi as file:
+            file.seek(extpos)
+            for card in iter(lambda:file.read(80), ''):   # read in 80 byte blocks 
+               # Header files have the header with 80 bytes blocks -> this reads the header line by line
+               NR += 1
+               if card.startswith(b'END'): 
+                  break
+               if card.startswith(args):
+                  #key, val, comment = card.replace("= ","/ ",1).split("/ ")
+                  key, val, comment = card.replace(b' /',b'= ',1).split(b'= ')   # does not parse HARPN.2012-09-03T05-29-56.622 "HIERARCH TNG OBS TARG NAME = 'M1'/ no comment"
+                  # key, val, comment = card.replace('/','= ',1).split('= ')
+                  hdr[key.strip().decode('utf-8')] = val.strip(b"' ").decode('utf-8') if b"'" in val else float(val) if b'.' in val else int(val)
+                  #hdr[key.strip()] = val.strip("' ") if any(i in val for i in "'TF") else float(val) if '.' in val and not 'NaN.' in val else int(val) if val.strip(" -").isdigit() else val
+                  self.comments[key.strip().decode('utf-8')] = comment.decode('utf-8')
+                  count -= 1
+                  if count==0: 
+                     args = () # all found; do not check cards anymore; only read to end
+               
+            
+      else:
+         logger.fatal("I should implement this")
+         raise NotImplementedError
+
+      
+      hsz = 2880 * ((NR-1)//36 + 1)
+
       dsz = 0     # EXTDATSZ
       self.NAXIS = hdr.get('NAXIS', 0)
       if self.NAXIS:
@@ -750,7 +387,7 @@ class imhead(dict):
          if self.NAXIS > 1:
             self.NAXIS2 = hdr['NAXIS2']
             dsz *= self.NAXIS2
-         dsz = ((dsz/8-1)/2880+1) * 2880
+         dsz = ((dsz//8-1)//2880 +1) * 2880
 
       self.EXTHDRSZ = hsz   # add hdr size
       self.EXTDATA = extpos + hsz
@@ -787,19 +424,23 @@ class getext(dict):
          self.fileobj = s.mother
       if hasattr(s, 'offset_data'):
          filepos = s.offset_data
-         fileend = s.offset_data + s.size
-      #pause()
+         fileend = s.offset_data + s.size 
+
 
       while True:
          exthdr = imhead(self.fileobj, 'EXTNAME', extpos=filepos)
-         if exthdr.EXTEND <= filepos: break   # no new records
+         if exthdr.EXTEND <= filepos:
+            print("no new records")
+            break   # no new records
          filepos = exthdr.EXTEND
-         ext[i] = ext[exthdr.get('EXTNAME', i)] = exthdr
-         if filepos == fileend: break   # end of filemember in tarfile
+         ext[i]  = exthdr
+
+         if filepos == fileend: 
+            break   # end of filemember in tarfile
          i += 1
       super(getext, self).__init__(ext)
 
-   def getdata(self, extname=None, o=np.s_[:]):
+   def getdata(self, extname=None, order=np.s_[:]):
       if extname is None:  # search first extension with data
          extname = 0
          while not self[extname].NAXIS: extname += 1
@@ -807,23 +448,19 @@ class getext(dict):
       dtype = {-32: '>f4', -64: '>f8'}[ext.BITPIX]
       dsize = {-32: 4, -64: 8}[ext.BITPIX]
       was_open = True
-      if isinstance(self.fileobj, (tarfile.ExFileObject, file)):
+      if isinstance(self.fileobj, (tarfile.ExFileObject, FitsClass)):
          funit = self.fileobj
       else:
-         funit = open(self.fileobj)
-         was_open = False
+         funit = self.fileobj
+         print(self.fileobj, type(self.fileobj))
 
-#      with open(self.fileobj) as funit:
-      if 1:
-         if o == np.s_[:]: # read all
+      with self.fileobj as funit:
+         if order == np.s_[:]: # read all
             funit.seek(ext.EXTDATA)
             data = np.fromfile(funit, dtype=dtype, count=ext.NAXIS1*ext.NAXIS2).reshape((ext.NAXIS2,ext.NAXIS1))
          else:
-            funit.seek(ext.EXTDATA+o*ext.NAXIS1*dsize)
+            funit.seek(ext.EXTDATA+order*ext.NAXIS1*dsize)
             data = np.fromfile(funit, dtype=dtype, count=ext.NAXIS1)
-
-      if not was_open:
-         funit.close()
       return data
 
 
@@ -862,50 +499,52 @@ def bary(obj,bjd, exptime):
    #pause(exptime)
    p = Popen(['./src/bary/eph'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
    eph = p.communicate(input="\n".join(s)+"\n")[0]
-   if  'Star not in starlist' in eph: stop(obj, 'Star not in starlist')
+   if  'Star not in starlist' in eph: 
+      logger.error("Star not starList")
+      stop(obj, 'Star not in starlist')
    berv = float(eph.split("\n")[-3].lstrip(" DELTAV=").rstrip("m/s"))
    return berv
 
 def airtovac(wave_air):
    """
-taken from idl astrolib
-;+
-; NAME:
-;       AIRTOVAC
-; PURPOSE:
-;       Convert air wavelengths to vacuum wavelengths 
-; EXPLANATION:
-;       Wavelengths are corrected for the index of refraction of air under 
-;       standard conditions.  Wavelength values below 2000 A will not be 
-;       altered.  Uses relation of Ciddor (1996).
-;
-; CALLING SEQUENCE:
-;       AIRTOVAC, WAVE_AIR, [ WAVE_VAC]
-;
-; INPUT/OUTPUT:
-;       WAVE_AIR - Wavelength in Angstroms, scalar or vector
-;               If this is the only parameter supplied, it will be updated on
-;               output to contain double precision vacuum wavelength(s). 
-; OPTIONAL OUTPUT:
-;        WAVE_VAC - Vacuum wavelength in Angstroms, same number of elements as
-;                 WAVE_AIR, double precision
-;
-; EXAMPLE:
-;       If the air wavelength is  W = 6056.125 (a Krypton line), then 
-;       AIRTOVAC, W yields an vacuum wavelength of W = 6057.8019
-;
-; METHOD:
-;	Formula from Ciddor 1996, Applied Optics 62, 958
-;
-; NOTES:
-;       Take care within 1 A of 2000 A.   Wavelengths below 2000 A *in air* are
-;       not altered.
-; REVISION HISTORY
-;       Written W. Landsman                November 1991
-;       Use Ciddor (1996) formula for better accuracy in the infrared 
-;           Added optional output vector, W Landsman Mar 2011
-;       Iterate for better precision W.L./D. Schlegel  Mar 2011
-;-
+   taken from idl astrolib
+   ;+
+   ; NAME:
+   ;       AIRTOVAC
+   ; PURPOSE:
+   ;       Convert air wavelengths to vacuum wavelengths 
+   ; EXPLANATION:
+   ;       Wavelengths are corrected for the index of refraction of air under 
+   ;       standard conditions.  Wavelength values below 2000 A will not be 
+   ;       altered.  Uses relation of Ciddor (1996).
+   ;
+   ; CALLING SEQUENCE:
+   ;       AIRTOVAC, WAVE_AIR, [ WAVE_VAC]
+   ;
+   ; INPUT/OUTPUT:
+   ;       WAVE_AIR - Wavelength in Angstroms, scalar or vector
+   ;               If this is the only parameter supplied, it will be updated on
+   ;               output to contain double precision vacuum wavelength(s). 
+   ; OPTIONAL OUTPUT:
+   ;        WAVE_VAC - Vacuum wavelength in Angstroms, same number of elements as
+   ;                 WAVE_AIR, double precision
+   ;
+   ; EXAMPLE:
+   ;       If the air wavelength is  W = 6056.125 (a Krypton line), then 
+   ;       AIRTOVAC, W yields an vacuum wavelength of W = 6057.8019
+   ;
+   ; METHOD:
+   ;	Formula from Ciddor 1996, Applied Optics 62, 958
+   ;
+   ; NOTES:
+   ;       Take care within 1 A of 2000 A.   Wavelengths below 2000 A *in air* are
+   ;       not altered.
+   ; REVISION HISTORY
+   ;       Written W. Landsman                November 1991
+   ;       Use Ciddor (1996) formula for better accuracy in the infrared 
+   ;           Added optional output vector, W Landsman Mar 2011
+   ;       Iterate for better precision W.L./D. Schlegel  Mar 2011
+   ;-
    """
 
    wave_vac = wave_air * 1.0
@@ -930,16 +569,6 @@ taken from idl astrolib
 
 
 if __name__ == "__main__":
-   if not 'debug' in sys.argv:
-      x=Spectrum(*sys.argv[1:], inst='HARPS', pfits=2)
-      x.read_data()
-   else:
-      sys.argv.remove('debug')
-      try:
-         read_spec(*sys.argv[1:])
-      except:
-         import pdb, sys
-         e, m, tb = sys.exc_info()
-         pdb.post_mortem(tb)
+   pass
 
 

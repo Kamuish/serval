@@ -18,13 +18,15 @@ k=cubicSpline.curvatures(x,y)
 yy=cubicSpline.evalSpline(x,y,k,xx)
 yy
 '''
+import logging 
+logger = logging.getLogger(__name__)
 
 import numpy as np
-import LUdecomp3
+import src.LUdecomp3
 from numpy import logical_and, asarray,zeros_like,floor,append
 from numpy.core.umath import sqrt, exp, greater, less, cos, add, sin, \
      less_equal, greater_equal
-import spl_int
+import src.spl_int as spl_int
 
 
 def spl_c(x,y):
@@ -316,7 +318,8 @@ def evalSpline_old(xData,yData,k,xx):
       + (yData[i]*(x - xData[i+1])                            \
        - yData[i+1]*(x - xData[i]))/h
     yy.append(y)
-    if i<10: print(i,y,x, k[i],x - xData[i])
+    if i<10:
+      print(i,y,x, k[i],x - xData[i])
    return np.array(yy)
 
 

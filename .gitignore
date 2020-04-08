@@ -1,0 +1,16 @@
+*.pyc 
+
+*.o
+*cpython*
+
+.idea
+
+.vscode
+
+gj699
+
+data
+
+*.so
+*.bak
+*.e
